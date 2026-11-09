@@ -15,7 +15,8 @@ void setup() {
   displayBegin();
   startupChase();
   bool radioOk = radioBegin();
-  DBG("receiver v%u id %s radio %s\n", FIRMWARE_VERSION, radioHatId().c_str(), radioOk ? "ok" : "FAIL");
+  DBG("receiver v%u id %s radio %s ch %u\n", FIRMWARE_VERSION, radioHatId().c_str(), radioOk ? "ok" : "FAIL",
+      radioChannel());
   timeoutStartMs = millis();
 }
 
@@ -37,6 +38,8 @@ void loop() {
     renderBar((uint8_t)roundf(levelF), rx.hue);
   }
 
+  radioUpdate(timedOut);
+
   if (now - lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {
     lastHeartbeatMs = now;
     radioSendHeartbeat();
@@ -44,7 +47,7 @@ void loop() {
 
   if (now - lastDebugMs >= DEBUG_INTERVAL_MS) {
     lastDebugMs = now;
-    DBG("rx %lu lost %lu lvl %3u hue %3u age %lums%s\n", (unsigned long)rx.count, (unsigned long)rx.lost, rx.level,
-        rx.hue, (unsigned long)since, timedOut ? " TIMEOUT" : "");
+    DBG("ch %u rx %lu lost %lu lvl %3u hue %3u age %lums%s\n", radioChannel(), (unsigned long)rx.count,
+        (unsigned long)rx.lost, rx.level, rx.hue, (unsigned long)since, timedOut ? " SCANNING" : "");
   }
 }

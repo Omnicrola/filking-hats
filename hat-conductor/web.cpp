@@ -55,6 +55,9 @@ tr.gone td{color:#777}
 .good{color:#2c2}.fair{color:#fc6}.weak{color:#f55}
 .mismatch{color:#f90}
 .empty{color:#777;text-align:center;padding:24px 0}
+.chan{align-items:center;margin-top:8px}
+select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;font-size:1rem}
+#chanMsg{font-size:.85rem;color:#fc6;min-height:1.2em;margin:6px 0 16px}
 </style>
 </head>
 <body>
@@ -95,6 +98,9 @@ tr.gone td{color:#777}
 </section>
 
 <section id="v-hats" hidden>
+<label class="chan" for="chan">Broadcast channel <select id="chan"></select></label>
+<div class="hint">Moves the conductor and every receiver. Channels 1, 6 and 11 don't overlap each other. Your phone drops off for a few seconds and must rejoin.</div>
+<div id="chanMsg"></div>
 <div id="hatSummary">&nbsp;</div>
 <table id="hatTable">
 <thead><tr><th>ID</th><th>Signal</th><th>Version</th><th>Last seen</th></tr></thead>
@@ -173,10 +179,34 @@ function ago(ms){
   return Math.floor(s/3600)+' h ago';
 }
 function signalClass(r){return r>=-60?'good':r>=-75?'fair':'weak'}
+let chanBusy=false,chanWanted=0;
+function showChannel(d){
+  const sel=$('chan');
+  if(!sel.options.length)for(let c=d.channels[0];c<=d.channels[1];c++)
+    sel.add(new Option(c+([1,6,11].includes(c)?'  (no overlap)':''),c));
+  if(!chanBusy)sel.value=d.pending||d.channel;
+  sel.dataset.current=d.channel;
+  if(d.pending)$('chanMsg').textContent='Switching to channel '+d.pending+'…';
+  else if(chanWanted&&d.channel===chanWanted){$('chanMsg').textContent='Now on channel '+d.channel+'.';chanWanted=0}
+}
+$('chan').addEventListener('change',async()=>{
+  const sel=$('chan'),ch=Number(sel.value),cur=Number(sel.dataset.current);
+  if(ch===cur)return;
+  if(!confirm('Move all hats from channel '+cur+' to channel '+ch+'? Your phone will drop off and needs to rejoin conductor-hat.')){sel.value=cur;return}
+  chanBusy=true;
+  try{
+    const r=await fetch('/api/channel',{method:'POST',body:new URLSearchParams({channel:ch})});
+    if(!r.ok)throw 0;
+    chanWanted=ch;
+    $('chanMsg').textContent='Switching to channel '+ch+'… If this page stops updating, rejoin conductor-hat.';
+  }catch(e){sel.value=cur;$('chanMsg').textContent='Could not reach the hat.'}
+  chanBusy=false;
+});
 async function pollHats(){
   try{
     const d=await (await fetch('/api/hats')).json();
     setVersion(d.version);
+    showChannel(d);
     const hats=d.hats.sort((a,b)=>(b.online-a.online)||(b.rssi-a.rssi));
     const live=hats.filter(h=>h.online).length;
     $('hatSummary').textContent=hats.length?hats.length+' seen since power-on, '+live+' online':'';
@@ -235,9 +265,10 @@ static void handleHats() {
   uint32_t now = millis();
   String json;
   json.reserve(48 + n * 80);
-  json += "{\"version\":";
-  json += FIRMWARE_VERSION;
-  json += ",\"hats\":[";
+  char head[128];
+  snprintf(head, sizeof(head), "{\"version\":%u,\"channel\":%u,\"pending\":%u,\"channels\":[%u,%u],\"hats\":[",
+           FIRMWARE_VERSION, radioChannel(), radioPendingChannel(), CHANNEL_MIN, CHANNEL_MAX);
+  json += head;
   for (int i = 0; i < n; i++) {
     const HatInfo &h = hats[i];
     uint32_t age = now - h.lastMs;
@@ -261,6 +292,16 @@ static void handleSettingsPost() {
   sendSettings();
 }
 
+static void handleChannel() {
+  if (!server.hasArg("channel") || !radioRequestChannel((uint8_t)server.arg("channel").toInt())) {
+    server.send(400, "text/plain", "bad channel");
+    return;
+  }
+  char buf[64];
+  snprintf(buf, sizeof(buf), "{\"channel\":%u,\"pending\":%u}", radioChannel(), radioPendingChannel());
+  sendJson(buf);
+}
+
 static void handleReset() {
   settingsReset();
   sendSettings();
@@ -273,6 +314,7 @@ void webBegin() {
   server.on("/api/settings", HTTP_GET, sendSettings);
   server.on("/api/settings", HTTP_POST, handleSettingsPost);
   server.on("/api/reset", HTTP_POST, handleReset);
+  server.on("/api/channel", HTTP_POST, handleChannel);
   server.onNotFound([]() {
     server.sendHeader("Location", "/");
     server.send(302, "text/plain", "");

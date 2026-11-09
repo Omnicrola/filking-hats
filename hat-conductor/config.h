@@ -4,7 +4,7 @@
 
 #define DEBUG 1
 
-constexpr uint16_t FIRMWARE_VERSION = 1;
+constexpr uint16_t FIRMWARE_VERSION = 2;
 
 #if DEBUG
 #define DBG(...) Serial.printf(__VA_ARGS__)
@@ -54,9 +54,14 @@ constexpr uint8_t AP_MAX_CLIENTS = 2;
 constexpr int MAX_RECEIVERS = 32;
 constexpr uint32_t RECEIVER_TIMEOUT_MS = 3000;
 
-constexpr uint8_t ESPNOW_CHANNEL = 2;
+constexpr uint8_t DEFAULT_CHANNEL = 2;
+constexpr uint8_t CHANNEL_MIN = 1;
+constexpr uint8_t CHANNEL_MAX = 11;
+constexpr uint32_t CHANNEL_BEACON_MS = 1000;
+constexpr uint32_t CHANNEL_ANNOUNCE_MS = 1500;
 constexpr uint16_t PACKET_MAGIC = 0x5A48;
 constexpr uint16_t HEARTBEAT_MAGIC = 0x5A52;
+constexpr uint16_t CHANNEL_MAGIC = 0x5A43;
 constexpr uint8_t GROUP_ID = 1;
 
 struct __attribute__((packed)) HatPacket {
@@ -71,4 +76,10 @@ struct __attribute__((packed)) HeartbeatPacket {
   uint16_t magic;
   uint8_t group;
   uint16_t version;
+};
+
+struct __attribute__((packed)) ChannelPacket {
+  uint16_t magic;
+  uint8_t group;
+  uint8_t channel;
 };

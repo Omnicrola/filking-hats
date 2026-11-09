@@ -3,6 +3,7 @@
 #include <Preferences.h>
 
 static Preferences prefs;
+static Preferences radioPrefs;
 static Settings current;
 
 static Settings defaults() {
@@ -19,6 +20,7 @@ static Settings clamped(Settings s) {
 
 void settingsBegin() {
   prefs.begin("hat", false);
+  radioPrefs.begin("radio", false);
   Settings d = defaults();
   Settings s;
   s.gateDbfs = prefs.getFloat("gate", d.gateDbfs);
@@ -43,4 +45,13 @@ void settingsSave(const Settings &s) {
 void settingsReset() {
   prefs.clear();
   current = defaults();
+}
+
+uint8_t settingsChannel() {
+  uint8_t ch = radioPrefs.getUChar("channel", DEFAULT_CHANNEL);
+  return (ch >= CHANNEL_MIN && ch <= CHANNEL_MAX) ? ch : DEFAULT_CHANNEL;
+}
+
+void settingsSaveChannel(uint8_t channel) {
+  radioPrefs.putUChar("channel", channel);
 }

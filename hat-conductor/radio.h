@@ -14,3 +14,6 @@ bool radioBegin();
 void broadcast(uint8_t level, uint8_t hue);
 int radioReceiverCount();
 int radioHats(HatInfo *out, int max);
+uint8_t radioChannel();
+uint8_t radioPendingChannel();
+bool radioRequestChannel(uint8_t channel);

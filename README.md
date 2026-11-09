@@ -61,6 +61,8 @@ Each sketch's `config.h` has a `FIRMWARE_VERSION` integer. **Increment it in bot
 - Renders at 100 Hz. It smooths toward the latest level and keeps using the last values between packets.
 - Broadcasts a heartbeat once per second so the conductor can count it.
 - If nothing valid arrives for **5 s**, the whole strip turns solid red. This includes the first 5 s after boot. Normal display resumes on the next valid packet.
+- While red, it scans channels 1–11, staying 250 ms on each (`SCAN_DWELL_MS`), until it hears its conductor. A full sweep takes about 3 s. It then saves that channel to flash and starts there at next boot.
+- Follows the conductor's channel beacon: if the conductor says to use a different channel, it switches at once and saves it.
 
 **Display:** the bar fills from LED 0 upward in a single palette color, with a peak dot that holds 300 ms and then falls.
 
@@ -102,10 +104,17 @@ Refreshes once a second and lists every receiver heard since the conductor power
 
 The list holds up to 32 hats (`MAX_RECEIVERS`); hats beyond that are not listed.
 
+**Broadcast channel.** The dropdown at the top of the Hats view moves every hat to another Wi-Fi channel without reflashing. After you confirm:
+1. The conductor tells all receivers the new channel, repeatedly for 1.5 s (`CHANNEL_ANNOUNCE_MS`), on the old channel.
+2. It then moves its access point and ESP-NOW to the new channel and saves it to flash. Receivers have already moved and resume within a moment.
+3. Your phone is dropped and must rejoin `conductor-hat`. Most phones rejoin by themselves within a few seconds; reload the page if it stops updating.
+
+Receivers that were off or out of range find the new channel by scanning (see Behavior), so they don't need to be present during the change. Channels go from 1 to 11 (`CHANNEL_MIN`/`CHANNEL_MAX`); 12–13 are left out because US phones can't see them. **Reset to defaults** does not change the channel.
+
 ### Access limits
 
 - At most 2 devices can join at once (`AP_MAX_CLIENTS`).
-- The access point shares the radio with ESP-NOW, so it is fixed to `ESPNOW_CHANNEL`. Changing that constant moves both.
+- The access point shares the radio with ESP-NOW, so they are always on the same channel. The Hats view's channel dropdown moves both.
 
 ## File layout
 
@@ -117,20 +126,20 @@ Each sketch folder is self-contained. The Arduino IDE opens the extra files as t
 | `config.h` | Pins, tuning constants, setting defaults and limits, access point name/password, debug macro, packet structs | Pins, timing constants, debug macro, packet structs |
 | `display.h/.cpp` | LED setup, startup chase, bar and peak-dot rendering, palette | Same, plus `renderTimeout()` (solid red) |
 | `audio.h/.cpp` | I2S mic, high-pass filter, RMS/AGC level, FFT hue | — |
-| `radio.h/.cpp` | Access point and ESP-NOW setup, `broadcast()`, the seen-hats list (ID, signal, version, last seen), `radioReceiverCount()` and `radioHats()` | ESP-NOW setup, receive callback, thread-safe `radioSnapshot()`, `radioSendHeartbeat()`, `radioHatId()` |
-| `settings.h/.cpp` | Web-adjustable settings, saved to flash | — |
-| `web.h/.cpp` | Web server, the control page with its Tuning and Hats views (embedded HTML), and the JSON API (`/api/status`, `/api/hats`, `/api/settings`, `/api/reset`) | — |
+| `radio.h/.cpp` | Access point and ESP-NOW setup, `broadcast()` (including the channel beacon and switch), the seen-hats list (ID, signal, version, last seen), `radioReceiverCount()` and `radioHats()` | ESP-NOW setup, receive callback, thread-safe `radioSnapshot()`, `radioSendHeartbeat()`, `radioHatId()`, `radioUpdate()` (channel following and scanning, saved to flash) |
+| `settings.h/.cpp` | Web-adjustable settings and the broadcast channel, saved to flash | — |
+| `web.h/.cpp` | Web server, the control page with its Tuning and Hats views (embedded HTML), and the JSON API (`/api/status`, `/api/hats`, `/api/settings`, `/api/reset`, `/api/channel`) | — |
 
 ## Must stay in sync between the two sketches
 
 There is no shared library. These pieces are duplicated and must match exactly:
 
-- In `config.h`: `FIRMWARE_VERSION`, the `HatPacket` and `HeartbeatPacket` struct layouts, `PACKET_MAGIC`, `HEARTBEAT_MAGIC`, `GROUP_ID` and `ESPNOW_CHANNEL`. For matching looks, also `NUM_LEDS`, `LED_BRIGHTNESS`, `LED_POWER_MA` and the peak-dot constants.
+- In `config.h`: `FIRMWARE_VERSION`, the `HatPacket`, `HeartbeatPacket` and `ChannelPacket` struct layouts, `PACKET_MAGIC`, `HEARTBEAT_MAGIC`, `CHANNEL_MAGIC`, `GROUP_ID`, `DEFAULT_CHANNEL`, `CHANNEL_MIN` and `CHANNEL_MAX`. For matching looks, also `NUM_LEDS`, `LED_BRIGHTNESS`, `LED_POWER_MA` and the peak-dot constants.
 - In `display.cpp`: the receiver's copy is the conductor's plus `renderTimeout()`. Any change to `hatPalette_gp` or `renderBar()` must be made in both.
 
 ## Radio protocol
 
-- ESP-NOW broadcast to `FF:FF:FF:FF:FF:FF` on Wi-Fi channel 2. The conductor sends from its access point interface; receivers don't join the access point.
+- ESP-NOW broadcast to `FF:FF:FF:FF:FF:FF` on the broadcast channel: `DEFAULT_CHANNEL` (2) until changed from the Hats view, then whatever was last chosen, saved in flash on every hat. The conductor sends from its access point interface; receivers don't join the access point.
 - Conductor → receivers, about 31 per second, 6-byte packed little-endian packet:
 
 | Byte | Field | Meaning |
@@ -142,6 +151,7 @@ There is no shared library. These pieces are duplicated and must match exactly:
 | 5 | hue | 0–255 palette index |
 
 - Receiver → broadcast, once per second, 5-byte heartbeat: `magic` = `0x5A52` (bytes 0–1), `group` (byte 2) and `version` (bytes 3–4, the receiver's `FIRMWARE_VERSION`). The conductor identifies each receiver by the sender's MAC address and records the signal strength (RSSI) of each heartbeat. Hats drop out of the online count after 3 s without a heartbeat but stay in the Hats list. Receivers ignore each other's heartbeats because the length differs.
+- Conductor → receivers, 4-byte channel packet: `magic` = `0x5A43` (bytes 0–1), `group` (byte 2), `channel` (byte 3). Sent once per second with the current channel (`CHANNEL_BEACON_MS`), and with every frame for 1.5 s before a channel change, carrying the new channel. A receiver that hears a different channel than its own switches to it. This also corrects a receiver that locked onto a neighboring channel by picking up overlapping signal while scanning.
 
 ## Palette
 
@@ -160,6 +170,7 @@ Noise floor, minimum frequency, bar decay and gain recovery decay are set from t
 ## Troubleshooting
 
 - **Conductor bar never moves and the debug output shows about -180 dB.** The mic channel or wiring is wrong. Check that SEL is on GND, and that BCLK and WS are not swapped.
-- **Receivers stay red.** Check that the conductor prints `radio ok`, that both sketches have the same magic, group and channel, and that the receiver's `rx` count increases.
+- **Receivers stay red.** Check that the conductor prints `radio ok`, that both sketches have the same magics and group, and that the receiver's `rx` count increases. While red, the receiver's debug line shows `SCANNING` and `ch` should cycle 1–11; if the conductor is on, it should lock on within about 3 s.
+- **Receivers on v1 firmware after a channel change.** They don't understand channel packets or scanning, and stay on channel 2. Reflash them.
 - **Page shows 0 receivers but receivers are lit.** The heartbeat isn't arriving. Check that `HEARTBEAT_MAGIC` and `GROUP_ID` match, and that the receivers were reflashed with the heartbeat version.
 - **Page won't load.** Make sure the phone is still on `conductor-hat`; some phones drop networks with no internet. Turn off mobile data, or tell the phone to stay connected.

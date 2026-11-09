@@ -15,3 +15,5 @@ bool radioBegin();
 RadioState radioSnapshot();
 void radioSendHeartbeat();
 String radioHatId();
+void radioUpdate(bool lost);
+uint8_t radioChannel();

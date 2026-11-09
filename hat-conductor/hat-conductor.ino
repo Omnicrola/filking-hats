@@ -16,8 +16,8 @@ void setup() {
   bool micOk = audioBegin();
   bool radioOk = radioBegin();
   webBegin();
-  DBG("conductor v%u mic %s, radio %s, web http://%s\n", FIRMWARE_VERSION, micOk ? "ok" : "FAIL", radioOk ? "ok" : "FAIL",
-      WiFi.softAPIP().toString().c_str());
+  DBG("conductor v%u mic %s, radio %s ch %u, web http://%s\n", FIRMWARE_VERSION, micOk ? "ok" : "FAIL",
+      radioOk ? "ok" : "FAIL", radioChannel(), WiFi.softAPIP().toString().c_str());
 }
 
 void loop() {

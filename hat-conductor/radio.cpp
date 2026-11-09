@@ -1,11 +1,16 @@
 #include "radio.h"
 #include "config.h"
+#include "settings.h"
 #include <WiFi.h>
 #include <esp_now.h>
 #include <esp_wifi.h>
 
 static const uint8_t BROADCAST_ADDR[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 static uint8_t seq = 0;
+static uint8_t channel = DEFAULT_CHANNEL;
+static uint8_t pendingChannel = 0;
+static uint32_t switchAtMs = 0;
+static uint32_t lastBeaconMs = 0;
 
 static portMUX_TYPE hatsMux = portMUX_INITIALIZER_UNLOCKED;
 static HatInfo hats[MAX_RECEIVERS];
@@ -40,22 +45,63 @@ static void onReceive(const esp_now_recv_info_t *info, const uint8_t *data, int 
 }
 
 bool radioBegin() {
+  channel = settingsChannel();
   WiFi.mode(WIFI_AP);
-  if (!WiFi.softAP(AP_SSID, AP_PASSWORD, ESPNOW_CHANNEL, 0, AP_MAX_CLIENTS)) return false;
+  if (!WiFi.softAP(AP_SSID, AP_PASSWORD, channel, 0, AP_MAX_CLIENTS)) return false;
   esp_wifi_set_ps(WIFI_PS_NONE);
   if (esp_now_init() != ESP_OK) return false;
   esp_now_peer_info_t peer = {};
   memcpy(peer.peer_addr, BROADCAST_ADDR, 6);
-  peer.channel = ESPNOW_CHANNEL;
+  peer.channel = 0;
   peer.ifidx = WIFI_IF_AP;
   peer.encrypt = false;
   if (esp_now_add_peer(&peer) != ESP_OK) return false;
   return esp_now_register_recv_cb(onReceive) == ESP_OK;
 }
 
+static void sendChannel(uint8_t ch) {
+  ChannelPacket pkt = {CHANNEL_MAGIC, GROUP_ID, ch};
+  esp_now_send(BROADCAST_ADDR, (const uint8_t *)&pkt, sizeof(pkt));
+}
+
+static void applyPendingChannel() {
+  channel = pendingChannel;
+  pendingChannel = 0;
+  settingsSaveChannel(channel);
+  bool ok = WiFi.softAP(AP_SSID, AP_PASSWORD, channel, 0, AP_MAX_CLIENTS);
+  DBG("channel -> %u %s (wifi reports %d)\n", channel, ok ? "ok" : "FAIL", WiFi.channel());
+}
+
 void broadcast(uint8_t level, uint8_t hue) {
   HatPacket pkt = {PACKET_MAGIC, GROUP_ID, seq++, level, hue};
   esp_now_send(BROADCAST_ADDR, (const uint8_t *)&pkt, sizeof(pkt));
+  uint32_t now = millis();
+  if (pendingChannel) {
+    sendChannel(pendingChannel);
+    if ((int32_t)(now - switchAtMs) >= 0) applyPendingChannel();
+  } else if (now - lastBeaconMs >= CHANNEL_BEACON_MS) {
+    lastBeaconMs = now;
+    sendChannel(channel);
+  }
+}
+
+uint8_t radioChannel() {
+  return channel;
+}
+
+uint8_t radioPendingChannel() {
+  return pendingChannel;
+}
+
+bool radioRequestChannel(uint8_t ch) {
+  if (ch < CHANNEL_MIN || ch > CHANNEL_MAX) return false;
+  if (ch == channel) {
+    pendingChannel = 0;
+    return true;
+  }
+  pendingChannel = ch;
+  switchAtMs = millis() + CHANNEL_ANNOUNCE_MS;
+  return true;
 }
 
 int radioReceiverCount() {
