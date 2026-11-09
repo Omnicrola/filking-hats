@@ -11,6 +11,7 @@ static volatile uint8_t rxLevel = 0;
 static volatile uint8_t rxHue = 0;
 static volatile uint8_t rxMode = MODE_REACTIVE;
 static volatile int8_t rxRssi = -127;
+static uint8_t rxBands[NUM_LEDS];
 static volatile uint32_t rxTimeMs = 0;
 static volatile uint32_t rxCount = 0;
 static volatile uint32_t rxLost = 0;
@@ -28,6 +29,15 @@ static void onReceive(const esp_now_recv_info_t *info, const uint8_t *data, int 
     memcpy(&cmd, data, sizeof(cmd));
     if (cmd.magic == CHANNEL_MAGIC && cmd.group == GROUP_ID && cmd.channel >= CHANNEL_MIN && cmd.channel <= CHANNEL_MAX)
       cmdChannel = cmd.channel;
+    return;
+  }
+  if (len == sizeof(SpectrumPacket)) {
+    SpectrumPacket sp;
+    memcpy(&sp, data, sizeof(sp));
+    if (sp.magic != SPECTRUM_MAGIC || sp.group != GROUP_ID) return;
+    taskENTER_CRITICAL(&rxMux);
+    memcpy(rxBands, sp.bands, NUM_LEDS);
+    taskEXIT_CRITICAL(&rxMux);
     return;
   }
   if (len != sizeof(HatPacket)) return;
@@ -91,6 +101,7 @@ RadioState radioSnapshot() {
   s.hue = rxHue;
   s.mode = rxMode;
   s.rssi = rxRssi;
+  memcpy(s.bands, rxBands, NUM_LEDS);
   s.lastRxMs = rxTimeMs;
   s.count = rxCount;
   s.lost = rxLost;

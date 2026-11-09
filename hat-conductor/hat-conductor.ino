@@ -39,9 +39,12 @@ void loop() {
     metronomeLoop();
     return;
   }
-  AudioFrame f = audioProcess();
-  broadcast(f.level, f.hue, modeCurrent());
-  if (modeCurrent() == MODE_SLEEP) renderOff();
+  uint8_t mode = modeCurrent();
+  AudioFrame f = audioProcess(mode == MODE_FREQUENCY);
+  broadcast(f.level, f.hue, mode);
+  if (mode == MODE_FREQUENCY) broadcastSpectrum(f.bands);
+  if (mode == MODE_SLEEP) renderOff();
+  else if (mode == MODE_FREQUENCY) renderSpectrum(f.bands);
   else renderBar(f.level, f.hue);
   webUpdate(f);
   webHandle();

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "config.h"
 
 struct AudioFrame {
   float db;
@@ -9,7 +10,8 @@ struct AudioFrame {
   uint8_t level;
   uint8_t hue;
   bool gated;
+  uint8_t bands[NUM_LEDS];
 };
 
 bool audioBegin();
-AudioFrame audioProcess();
+AudioFrame audioProcess(bool spectrum);

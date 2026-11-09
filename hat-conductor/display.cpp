@@ -57,3 +57,13 @@ void renderOff() {
   FastLED.show();
   peakPos = 0;
 }
+
+void renderSpectrum(const uint8_t *bands) {
+  for (int i = 0; i < NUM_LEDS; i++) {
+    CRGB c = palette[(uint8_t)(i * 255 / (NUM_LEDS - 1))];
+    c.nscale8_video(max(FREQ_MIN_BRIGHTNESS, bands[i]));
+    leds[i] = c;
+  }
+  FastLED.show();
+  peakPos = 0;
+}

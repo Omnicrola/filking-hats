@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Arduino.h>
+#include "config.h"
 
 struct RadioState {
   bool any;
@@ -8,6 +9,7 @@ struct RadioState {
   uint8_t hue;
   uint8_t mode;
   int8_t rssi;
+  uint8_t bands[NUM_LEDS];
   uint32_t lastRxMs;
   uint32_t count;
   uint32_t lost;

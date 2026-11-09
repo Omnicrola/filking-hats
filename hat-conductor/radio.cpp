@@ -122,3 +122,11 @@ int radioHats(HatInfo *out, int max) {
   taskEXIT_CRITICAL(&hatsMux);
   return n;
 }
+
+void broadcastSpectrum(const uint8_t *bands) {
+  SpectrumPacket pkt;
+  pkt.magic = SPECTRUM_MAGIC;
+  pkt.group = GROUP_ID;
+  memcpy(pkt.bands, bands, NUM_LEDS);
+  esp_now_send(BROADCAST_ADDR, (const uint8_t *)&pkt, sizeof(pkt));
+}

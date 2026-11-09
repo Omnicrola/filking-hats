@@ -10,6 +10,7 @@ uint32_t lastHeartbeatMs = 0;
 uint32_t lastDiscoMs = 0;
 uint8_t discoHue = 0;
 float rssiF = RANGE_RSSI_LOW;
+float bandsF[NUM_LEDS];
 
 void setup() {
 #if DEBUG
@@ -40,6 +41,16 @@ void loop() {
   } else if (rx.any) {
     rssiF += (rx.rssi - rssiF) * RSSI_SMOOTHING;
     switch (rx.mode) {
+      case MODE_FREQUENCY: {
+        uint8_t out[NUM_LEDS];
+        for (int i = 0; i < NUM_LEDS; i++) {
+          bandsF[i] += (rx.bands[i] - bandsF[i]) * LEVEL_SMOOTHING;
+          out[i] = (uint8_t)roundf(bandsF[i]);
+        }
+        renderSpectrum(out);
+        levelF = 0;
+        break;
+      }
       case MODE_METRONOME:
         levelF = rx.level;
         renderBar(rx.level, rx.hue);
