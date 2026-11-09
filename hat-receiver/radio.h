@@ -13,3 +13,5 @@ struct RadioState {
 
 bool radioBegin();
 RadioState radioSnapshot();
+void radioSendHeartbeat();
+String radioHatId();

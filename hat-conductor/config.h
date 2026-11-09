@@ -4,6 +4,8 @@
 
 #define DEBUG 1
 
+constexpr uint16_t FIRMWARE_VERSION = 1;
+
 #if DEBUG
 #define DBG(...) Serial.printf(__VA_ARGS__)
 #else
@@ -25,20 +27,36 @@ constexpr uint32_t SAMPLE_RATE = 16000;
 constexpr uint16_t SAMPLES = 512;
 constexpr float FRAME_S = (float)SAMPLES / SAMPLE_RATE;
 
-constexpr float HPF_CUTOFF_HZ = 100.0f;
-constexpr float FREQ_MIN_HZ = 100.0f;
 constexpr float FREQ_MAX_HZ = 4000.0f;
-
-constexpr float GATE_DBFS = -65.0f;
 constexpr float MIN_REF_DBFS = -50.0f;
 constexpr float DISPLAY_SPAN_DB = 30.0f;
-constexpr float AGC_DECAY_DB_PER_S = 1.5f;
 constexpr float LEVEL_ATTACK = 0.6f;
-constexpr float LEVEL_RELEASE_PER_S = 400.0f;
 constexpr float HUE_SMOOTHING = 0.3f;
+
+constexpr float DEFAULT_GATE_DBFS = -65.0f;
+constexpr float DEFAULT_MIN_FREQ_HZ = 100.0f;
+constexpr float DEFAULT_LEVEL_RELEASE_PER_S = 400.0f;
+constexpr float DEFAULT_AGC_DECAY_DB_PER_S = 1.5f;
+
+constexpr float GATE_DBFS_MIN = -90.0f;
+constexpr float GATE_DBFS_MAX = -20.0f;
+constexpr float MIN_FREQ_HZ_MIN = 20.0f;
+constexpr float MIN_FREQ_HZ_MAX = 1000.0f;
+constexpr float LEVEL_RELEASE_MIN = 20.0f;
+constexpr float LEVEL_RELEASE_MAX = 2000.0f;
+constexpr float AGC_DECAY_MIN = 0.1f;
+constexpr float AGC_DECAY_MAX = 20.0f;
+
+constexpr const char *AP_SSID = "conductor-hat";
+constexpr const char *AP_PASSWORD = "jinglebells";
+constexpr uint8_t AP_MAX_CLIENTS = 2;
+
+constexpr int MAX_RECEIVERS = 32;
+constexpr uint32_t RECEIVER_TIMEOUT_MS = 3000;
 
 constexpr uint8_t ESPNOW_CHANNEL = 2;
 constexpr uint16_t PACKET_MAGIC = 0x5A48;
+constexpr uint16_t HEARTBEAT_MAGIC = 0x5A52;
 constexpr uint8_t GROUP_ID = 1;
 
 struct __attribute__((packed)) HatPacket {
@@ -47,4 +65,10 @@ struct __attribute__((packed)) HatPacket {
   uint8_t seq;
   uint8_t level;
   uint8_t hue;
+};
+
+struct __attribute__((packed)) HeartbeatPacket {
+  uint16_t magic;
+  uint8_t group;
+  uint16_t version;
 };

@@ -4,6 +4,8 @@
 
 #define DEBUG 1
 
+constexpr uint16_t FIRMWARE_VERSION = 1;
+
 #if DEBUG
 #define DBG(...) Serial.printf(__VA_ARGS__)
 #else
@@ -22,10 +24,18 @@ constexpr uint32_t FRAME_MS = 10;
 constexpr float LEVEL_SMOOTHING = 0.35f;
 constexpr uint32_t SIGNAL_TIMEOUT_MS = 5000;
 constexpr uint32_t DEBUG_INTERVAL_MS = 1000;
+constexpr uint32_t HEARTBEAT_INTERVAL_MS = 1000;
 
 constexpr uint8_t ESPNOW_CHANNEL = 2;
 constexpr uint16_t PACKET_MAGIC = 0x5A48;
+constexpr uint16_t HEARTBEAT_MAGIC = 0x5A52;
 constexpr uint8_t GROUP_ID = 1;
+
+struct __attribute__((packed)) HeartbeatPacket {
+  uint16_t magic;
+  uint8_t group;
+  uint16_t version;
+};
 
 struct __attribute__((packed)) HatPacket {
   uint16_t magic;

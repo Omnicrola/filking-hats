@@ -27,6 +27,14 @@ Supply: **1000 mAh single-cell LiPo** (about 4.2 V full, 3.7 V nominal, about 3.
 - **Low voltage.** WS2812B parts are specified down to 3.5 V. Near the end of a charge, blue and white fade first, then flicker appears. That's the cue to recharge.
 - **Brightness.** `LED_POWER_MA` = 250 allows full brightness on a full bar at `LED_BRIGHTNESS` 64. Lower it to extend runtime.
 
+## Versioning
+
+Each sketch's `config.h` has a `FIRMWARE_VERSION` integer. **Increment it in both sketches every time you change either sketch**, even a one-line tweak, and flash every hat you update. The two numbers always match, so the version tells you exactly which firmware a hat runs:
+
+- The conductor shows its own version at the top right of the control page.
+- Each receiver sends its version in its heartbeat. The **Hats** view highlights in orange any receiver whose version differs from the conductor's, i.e. one that missed a reflash.
+- Both hats print their version on the serial monitor at boot.
+
 ## Software setup
 
 - Arduino IDE with **esp32 by Espressif core 3.x**. Earlier cores use a different I2S/ESP-NOW API and will not compile.
@@ -40,19 +48,64 @@ Supply: **1000 mAh single-cell LiPo** (about 4.2 V full, 3.7 V nominal, about 3.
 
 **Conductor:**
 1. Samples the mic at 16 kHz, 32-bit slots (24-bit data).
-2. Applies a 2nd-order Butterworth high-pass filter at 100 Hz.
+2. Applies a 2nd-order Butterworth high-pass filter at the **minimum frequency** setting (default 100 Hz).
 3. Processes 512-sample blocks, about 31 frames per second:
-   - Converts RMS to dBFS. Below `GATE_DBFS` the bar drops to 0.
-   - AGC: the top of the display tracks recent peak loudness. It rises instantly, falls at `AGC_DECAY_DB_PER_S`, and never drops below `MIN_REF_DBFS`. The bar covers the top `DISPLAY_SPAN_DB` dB.
-   - Level smoothing: fast attack, linear release.
-   - FFT peak between 100 Hz and 4 kHz, mapped on a log scale to palette index 0–255, then smoothed. During silence the last color is kept.
+   - Converts RMS to dBFS. Below the **noise floor** setting the bar drops to 0.
+   - AGC: the top of the display tracks recent peak loudness. It rises instantly, falls at the **gain recovery decay** setting, and never drops below `MIN_REF_DBFS`. The bar covers the top `DISPLAY_SPAN_DB` dB.
+   - Level smoothing: fast attack, then falls at the **bar decay** setting.
+   - FFT peak between the minimum frequency and 4 kHz, mapped on a log scale to palette index 0–255, then smoothed. During silence the last color is kept.
 4. Broadcasts one packet per frame and renders its own bar.
+5. Runs a Wi-Fi access point with a control page (see below), and counts receivers from their heartbeats.
 
 **Receiver:**
 - Renders at 100 Hz. It smooths toward the latest level and keeps using the last values between packets.
+- Broadcasts a heartbeat once per second so the conductor can count it.
 - If nothing valid arrives for **5 s**, the whole strip turns solid red. This includes the first 5 s after boot. Normal display resumes on the next valid packet.
 
 **Display:** the bar fills from LED 0 upward in a single palette color, with a peak dot that holds 300 ms and then falls.
+
+## Phone control page (conductor)
+
+1. On your phone, join the Wi-Fi network **`conductor-hat`** with password **`jinglebells`**. Change both in `config.h` (`AP_SSID`, `AP_PASSWORD`; the password needs at least 8 characters). Your phone may warn that the network has no internet; stay connected anyway.
+2. Browse to **http://192.168.4.1**.
+
+The **☰** menu at the top left switches between two views: **Tuning** and **Hats**. You can bookmark either directly as `http://192.168.4.1/#tuning` or `http://192.168.4.1/#hats`.
+
+### Tuning view
+
+Refreshes twice a second and shows:
+- **Receivers:** hats whose heartbeat arrived in the last 3 s (`RECEIVER_TIMEOUT_MS`).
+- **dBFS:** the current mic level after the high-pass filter. 0 is the mic's maximum; quieter is more negative.
+- **Hz:** the dominant frequency. It shows "–" while the sound is below the noise floor.
+- A level bar mirroring the LEDs.
+
+Settings (sliders, then **Save**):
+
+| Setting | Range | Default | Effect |
+|---|---|---|---|
+| Noise floor | -90 to -20 dBFS | -65 | Below this, the bar shows nothing. Raise it if room noise lights the bar |
+| Minimum frequency | 20–1000 Hz | 100 | High-pass filter cutoff and lowest pitch used for color |
+| Bar decay | 20–2000 /s | 400 | How fast the bar falls, in level units per second (full bar = 255) |
+| Gain recovery decay | 0.1–20 dB/s | 1.5 | How fast the meter regains sensitivity after loud passages |
+
+- Saved settings are stored in flash and survive power cycles. **Reset to defaults** restores the `DEFAULT_*` values in `config.h`. The slider ranges come from the `*_MIN`/`*_MAX` constants there.
+### Hats view
+
+Refreshes once a second and lists every receiver heard since the conductor powered on. The list lives in RAM only and is cleared at power-off. Online hats are listed first, then strongest signal first. Each row shows:
+
+| Column | Meaning |
+|---|---|
+| ID | Last 3 bytes of the receiver's MAC address, e.g. `A1:B2:C3`. Each receiver prints its own ID on the serial monitor at boot, so you can label the hats |
+| Signal | Received signal strength of that hat's latest heartbeat, in dBm. Green ≥ -60 (strong), yellow -60 to -75 (fair), red < -75 (weak; expect lost packets) |
+| Version | The receiver's `FIRMWARE_VERSION`. Orange if it differs from the conductor's |
+| Last seen | Time since the last heartbeat. A green dot means online (heard within 3 s) |
+
+The list holds up to 32 hats (`MAX_RECEIVERS`); hats beyond that are not listed.
+
+### Access limits
+
+- At most 2 devices can join at once (`AP_MAX_CLIENTS`).
+- The access point shares the radio with ESP-NOW, so it is fixed to `ESPNOW_CHANNEL`. Changing that constant moves both.
 
 ## File layout
 
@@ -61,22 +114,24 @@ Each sketch folder is self-contained. The Arduino IDE opens the extra files as t
 | File | Conductor | Receiver |
 |---|---|---|
 | `hat-*.ino` | `setup()` and `loop()` only | `setup()` and `loop()`, including the timeout logic and receive-side smoothing |
-| `config.h` | Pins, tuning constants, debug macro, `HatPacket` | Same, plus receiver timing constants |
+| `config.h` | Pins, tuning constants, setting defaults and limits, access point name/password, debug macro, packet structs | Pins, timing constants, debug macro, packet structs |
 | `display.h/.cpp` | LED setup, startup chase, bar and peak-dot rendering, palette | Same, plus `renderTimeout()` (solid red) |
 | `audio.h/.cpp` | I2S mic, high-pass filter, RMS/AGC level, FFT hue | — |
-| `radio.h/.cpp` | ESP-NOW setup and `broadcast()` | ESP-NOW setup, receive callback, thread-safe `radioSnapshot()` |
+| `radio.h/.cpp` | Access point and ESP-NOW setup, `broadcast()`, the seen-hats list (ID, signal, version, last seen), `radioReceiverCount()` and `radioHats()` | ESP-NOW setup, receive callback, thread-safe `radioSnapshot()`, `radioSendHeartbeat()`, `radioHatId()` |
+| `settings.h/.cpp` | Web-adjustable settings, saved to flash | — |
+| `web.h/.cpp` | Web server, the control page with its Tuning and Hats views (embedded HTML), and the JSON API (`/api/status`, `/api/hats`, `/api/settings`, `/api/reset`) | — |
 
 ## Must stay in sync between the two sketches
 
 There is no shared library. These pieces are duplicated and must match exactly:
 
-- In `config.h`: the `HatPacket` struct layout, `PACKET_MAGIC`, `GROUP_ID` and `ESPNOW_CHANNEL`. For matching looks, also `NUM_LEDS`, `LED_BRIGHTNESS`, `LED_POWER_MA` and the peak-dot constants.
+- In `config.h`: `FIRMWARE_VERSION`, the `HatPacket` and `HeartbeatPacket` struct layouts, `PACKET_MAGIC`, `HEARTBEAT_MAGIC`, `GROUP_ID` and `ESPNOW_CHANNEL`. For matching looks, also `NUM_LEDS`, `LED_BRIGHTNESS`, `LED_POWER_MA` and the peak-dot constants.
 - In `display.cpp`: the receiver's copy is the conductor's plus `renderTimeout()`. Any change to `hatPalette_gp` or `renderBar()` must be made in both.
 
 ## Radio protocol
 
-- ESP-NOW broadcast to `FF:FF:FF:FF:FF:FF` on Wi-Fi channel 2, with no access point.
-- 6-byte packed little-endian packet:
+- ESP-NOW broadcast to `FF:FF:FF:FF:FF:FF` on Wi-Fi channel 2. The conductor sends from its access point interface; receivers don't join the access point.
+- Conductor → receivers, about 31 per second, 6-byte packed little-endian packet:
 
 | Byte | Field | Meaning |
 |---|---|---|
@@ -86,22 +141,25 @@ There is no shared library. These pieces are duplicated and must match exactly:
 | 4 | level | 0–255 bar height |
 | 5 | hue | 0–255 palette index |
 
+- Receiver → broadcast, once per second, 5-byte heartbeat: `magic` = `0x5A52` (bytes 0–1), `group` (byte 2) and `version` (bytes 3–4, the receiver's `FIRMWARE_VERSION`). The conductor identifies each receiver by the sender's MAC address and records the signal strength (RSSI) of each heartbeat. Hats drop out of the online count after 3 s without a heartbeat but stay in the Hats list. Receivers ignore each other's heartbeats because the length differs.
+
 ## Palette
 
 The palette is a 256-entry gradient (FastLED `CRGBPalette256`): red (bass) → orange/gold → green → white (treble). To change the colors, edit `hatPalette_gp` in both sketches.
 
 ## Tuning (conductor)
 
+Noise floor, minimum frequency, bar decay and gain recovery decay are set from the phone page. These remain compile-time constants in `config.h`:
+
 | Constant | Effect |
 |---|---|
-| `GATE_DBFS` | Raise it if room noise lights the bar; lower it for more sensitivity |
 | `MIN_REF_DBFS` | Lowest the AGC adapts to. Raise it so quiet rooms don't look "full" |
 | `DISPLAY_SPAN_DB` | Dynamic range of the bar. Smaller means jumpier |
-| `AGC_DECAY_DB_PER_S` | How fast it re-adapts after loud passages |
-| `LEVEL_RELEASE_PER_S` | How fast the bar falls |
 | `HUE_SMOOTHING` | 0–1. Lower means calmer color changes |
 
 ## Troubleshooting
 
 - **Conductor bar never moves and the debug output shows about -180 dB.** The mic channel or wiring is wrong. Check that SEL is on GND, and that BCLK and WS are not swapped.
 - **Receivers stay red.** Check that the conductor prints `radio ok`, that both sketches have the same magic, group and channel, and that the receiver's `rx` count increases.
+- **Page shows 0 receivers but receivers are lit.** The heartbeat isn't arriving. Check that `HEARTBEAT_MAGIC` and `GROUP_ID` match, and that the receivers were reflashed with the heartbeat version.
+- **Page won't load.** Make sure the phone is still on `conductor-hat`; some phones drop networks with no internet. Turn off mobile data, or tell the phone to stay connected.

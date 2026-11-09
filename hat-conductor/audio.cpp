@@ -1,5 +1,6 @@
 #include "audio.h"
 #include "config.h"
+#include "settings.h"
 #include <ESP_I2S.h>
 #include <arduinoFFT.h>
 
@@ -9,6 +10,7 @@ static float vReal[SAMPLES];
 static float vImag[SAMPLES];
 static ArduinoFFT<float> fft(vReal, vImag, SAMPLES, (float)SAMPLE_RATE);
 
+static float hpfCutoffHz = 0;
 static float hb0, hb1, hb2, ha1, ha2;
 static float hx1 = 0, hx2 = 0, hy1 = 0, hy2 = 0;
 
@@ -16,8 +18,9 @@ static float agcRefDb = MIN_REF_DBFS;
 static float levelF = 0;
 static float hueF = 0;
 
-static void hpfInit() {
-  float w0 = 2.0f * PI * HPF_CUTOFF_HZ / SAMPLE_RATE;
+static void hpfInit(float cutoffHz) {
+  hpfCutoffHz = cutoffHz;
+  float w0 = 2.0f * PI * cutoffHz / SAMPLE_RATE;
   float cw = cosf(w0);
   float alpha = sinf(w0) / (2.0f * 0.70710678f);
   float a0 = 1.0f + alpha;
@@ -26,6 +29,7 @@ static void hpfInit() {
   hb2 = hb0;
   ha1 = (-2.0f * cw) / a0;
   ha2 = (1.0f - alpha) / a0;
+  hx1 = hx2 = hy1 = hy2 = 0;
 }
 
 static inline float hpf(float x) {
@@ -47,12 +51,12 @@ static void micReadBlock() {
   }
 }
 
-static float peakFrequency() {
+static float peakFrequency(float minHz) {
   fft.windowing(FFTWindow::Hann, FFTDirection::Forward);
   fft.compute(FFTDirection::Forward);
   fft.complexToMagnitude();
   float binHz = (float)SAMPLE_RATE / SAMPLES;
-  int kMin = max(1, (int)ceilf(FREQ_MIN_HZ / binHz));
+  int kMin = max(1, (int)ceilf(minHz / binHz));
   int kMax = min(SAMPLES / 2 - 2, (int)floorf(FREQ_MAX_HZ / binHz));
   int k = kMin;
   for (int i = kMin + 1; i <= kMax; i++) {
@@ -64,18 +68,21 @@ static float peakFrequency() {
   return (k + d) * binHz;
 }
 
-static uint8_t frequencyToHue(float f) {
-  f = constrain(f, FREQ_MIN_HZ, FREQ_MAX_HZ);
-  return (uint8_t)roundf(255.0f * logf(f / FREQ_MIN_HZ) / logf(FREQ_MAX_HZ / FREQ_MIN_HZ));
+static uint8_t frequencyToHue(float f, float minHz) {
+  f = constrain(f, minHz, FREQ_MAX_HZ);
+  return (uint8_t)roundf(255.0f * logf(f / minHz) / logf(FREQ_MAX_HZ / minHz));
 }
 
 bool audioBegin() {
-  hpfInit();
+  hpfInit(settings().minFreqHz);
   i2s.setPins(MIC_BCLK_PIN, MIC_WS_PIN, -1, MIC_DIN_PIN);
   return i2s.begin(I2S_MODE_STD, SAMPLE_RATE, I2S_DATA_BIT_WIDTH_32BIT, I2S_SLOT_MODE_MONO, I2S_STD_SLOT_LEFT);
 }
 
 AudioFrame audioProcess() {
+  const Settings &s = settings();
+  if (s.minFreqHz != hpfCutoffHz) hpfInit(s.minFreqHz);
+
   micReadBlock();
 
   double sumSq = 0;
@@ -90,21 +97,21 @@ AudioFrame audioProcess() {
   float db = 20.0f * log10f(rms + 1e-9f);
 
   if (db > agcRefDb) agcRefDb = db;
-  else agcRefDb = max(MIN_REF_DBFS, agcRefDb - AGC_DECAY_DB_PER_S * FRAME_S);
+  else agcRefDb = max(MIN_REF_DBFS, agcRefDb - s.agcDecayDbPerS * FRAME_S);
 
-  bool gated = db < GATE_DBFS;
+  bool gated = db < s.gateDbfs;
   float target = 0;
   if (!gated) {
     float floorDb = agcRefDb - DISPLAY_SPAN_DB;
     target = constrain((db - floorDb) / DISPLAY_SPAN_DB, 0.0f, 1.0f) * 255.0f;
   }
   if (target > levelF) levelF += (target - levelF) * LEVEL_ATTACK;
-  else levelF = max(target, levelF - LEVEL_RELEASE_PER_S * FRAME_S);
+  else levelF = max(target, levelF - s.releasePerS * FRAME_S);
 
   float freq = 0;
   if (!gated) {
-    freq = peakFrequency();
-    hueF += (frequencyToHue(freq) - hueF) * HUE_SMOOTHING;
+    freq = peakFrequency(s.minFreqHz);
+    hueF += (frequencyToHue(freq, s.minFreqHz) - hueF) * HUE_SMOOTHING;
   }
 
   AudioFrame frame;

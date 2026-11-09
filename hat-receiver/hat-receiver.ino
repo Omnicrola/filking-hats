@@ -6,6 +6,7 @@ float levelF = 0;
 uint32_t timeoutStartMs = 0;
 uint32_t lastFrameMs = 0;
 uint32_t lastDebugMs = 0;
+uint32_t lastHeartbeatMs = 0;
 
 void setup() {
 #if DEBUG
@@ -14,7 +15,7 @@ void setup() {
   displayBegin();
   startupChase();
   bool radioOk = radioBegin();
-  DBG("radio %s\n", radioOk ? "ok" : "FAIL");
+  DBG("receiver v%u id %s radio %s\n", FIRMWARE_VERSION, radioHatId().c_str(), radioOk ? "ok" : "FAIL");
   timeoutStartMs = millis();
 }
 
@@ -34,6 +35,11 @@ void loop() {
   } else if (rx.any) {
     levelF += (rx.level - levelF) * LEVEL_SMOOTHING;
     renderBar((uint8_t)roundf(levelF), rx.hue);
+  }
+
+  if (now - lastHeartbeatMs >= HEARTBEAT_INTERVAL_MS) {
+    lastHeartbeatMs = now;
+    radioSendHeartbeat();
   }
 
   if (now - lastDebugMs >= DEBUG_INTERVAL_MS) {
