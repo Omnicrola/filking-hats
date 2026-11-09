@@ -4,7 +4,7 @@
 
 #define DEBUG 1
 
-constexpr uint16_t FIRMWARE_VERSION = 3;
+constexpr uint16_t FIRMWARE_VERSION = 4;
 
 #if DEBUG
 #define DBG(...) Serial.printf(__VA_ARGS__)
@@ -64,12 +64,16 @@ constexpr uint16_t HEARTBEAT_MAGIC = 0x5A52;
 constexpr uint16_t CHANNEL_MAGIC = 0x5A43;
 constexpr uint8_t GROUP_ID = 1;
 
+enum HatMode : uint8_t { MODE_REACTIVE = 0 };
+constexpr uint8_t MODE_COUNT = 1;
+
 struct __attribute__((packed)) HatPacket {
   uint16_t magic;
   uint8_t group;
   uint8_t seq;
   uint8_t level;
   uint8_t hue;
+  uint8_t mode;
 };
 
 struct __attribute__((packed)) HeartbeatPacket {

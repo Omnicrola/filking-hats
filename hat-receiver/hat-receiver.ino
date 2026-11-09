@@ -34,8 +34,12 @@ void loop() {
     renderTimeout();
     levelF = 0;
   } else if (rx.any) {
-    levelF += (rx.level - levelF) * LEVEL_SMOOTHING;
-    renderBar((uint8_t)roundf(levelF), rx.hue);
+    switch (rx.mode) {
+      default:
+        levelF += (rx.level - levelF) * LEVEL_SMOOTHING;
+        renderBar((uint8_t)roundf(levelF), rx.hue);
+        break;
+    }
   }
 
   radioUpdate(timedOut);

@@ -72,8 +72,8 @@ static void applyPendingChannel() {
   DBG("channel -> %u %s (wifi reports %d)\n", channel, ok ? "ok" : "FAIL", WiFi.channel());
 }
 
-void broadcast(uint8_t level, uint8_t hue) {
-  HatPacket pkt = {PACKET_MAGIC, GROUP_ID, seq++, level, hue};
+void broadcast(uint8_t level, uint8_t hue, uint8_t mode) {
+  HatPacket pkt = {PACKET_MAGIC, GROUP_ID, seq++, level, hue, mode};
   esp_now_send(BROADCAST_ADDR, (const uint8_t *)&pkt, sizeof(pkt));
   uint32_t now = millis();
   if (pendingChannel) {

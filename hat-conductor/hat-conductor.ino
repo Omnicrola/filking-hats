@@ -4,6 +4,7 @@
 #include "audio.h"
 #include "radio.h"
 #include "web.h"
+#include "mode.h"
 #include <WiFi.h>
 
 void setup() {
@@ -22,7 +23,7 @@ void setup() {
 
 void loop() {
   AudioFrame f = audioProcess();
-  broadcast(f.level, f.hue);
+  broadcast(f.level, f.hue, modeCurrent());
   renderBar(f.level, f.hue);
   webUpdate(f);
   webHandle();

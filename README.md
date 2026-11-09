@@ -71,7 +71,7 @@ Each sketch's `config.h` has a `FIRMWARE_VERSION` integer. **Increment it in bot
 1. On your phone, join the Wi-Fi network **`conductor-hat`** with password **`jinglebells`**. Change both in `config.h` (`AP_SSID`, `AP_PASSWORD`; the password needs at least 8 characters). Your phone may warn that the network has no internet; stay connected anyway.
 2. Browse to **http://192.168.4.1**.
 
-The **☰** menu at the top left switches between two views: **Tuning** and **Hats**. You can bookmark either directly as `http://192.168.4.1/#tuning` or `http://192.168.4.1/#hats`.
+The **☰** menu at the top left switches between three views: **Tuning**, **Hats** and **Modes**. You can bookmark any of them directly, e.g. `http://192.168.4.1/#tuning`, `#hats` or `#modes`.
 
 ### Tuning view
 
@@ -111,6 +111,16 @@ The list holds up to 32 hats (`MAX_RECEIVERS`); hats beyond that are not listed.
 
 Receivers that were off or out of range find the new channel by scanning (see Behavior), so they don't need to be present during the change. Channels go from 1 to 11 (`CHANNEL_MIN`/`CHANNEL_MAX`); 12–13 are left out because US phones can't see them. **Reset to defaults** does not change the channel.
 
+### Modes view
+
+One button per display mode; the active one has a gold outline. Tapping a button switches every receiver within one packet (about 30 ms).
+
+The mode is **not saved**. The conductor always boots into **Reactive**, and a receiver boots into Reactive and stays there until it hears the conductor's first packet.
+
+| Mode | Receivers | Conductor's own strip |
+|---|---|---|
+| Reactive | Mirror the conductor's level and pitch color (the normal behavior) | Normal bar |
+
 ### Access limits
 
 - At most 2 devices can join at once (`AP_MAX_CLIENTS`).
@@ -128,19 +138,20 @@ Each sketch folder is self-contained. The Arduino IDE opens the extra files as t
 | `audio.h/.cpp` | I2S mic, high-pass filter, RMS/AGC level, FFT hue | — |
 | `radio.h/.cpp` | Access point and ESP-NOW setup, `broadcast()` (including the channel beacon and switch), the seen-hats list (ID, signal, version, last seen), `radioReceiverCount()` and `radioHats()` | ESP-NOW setup, receive callback, thread-safe `radioSnapshot()`, `radioSendHeartbeat()`, `radioHatId()`, `radioUpdate()` (channel following and scanning, saved to flash) |
 | `settings.h/.cpp` | Web-adjustable settings and the broadcast channel, saved to flash | — |
-| `web.h/.cpp` | Web server, the control page with its Tuning and Hats views (embedded HTML), and the JSON API (`/api/status`, `/api/hats`, `/api/settings`, `/api/reset`, `/api/channel`) | — |
+| `mode.h/.cpp` | The current display mode (RAM only) | — |
+| `web.h/.cpp` | Web server, the control page with its Tuning, Hats and Modes views (embedded HTML), and the JSON API (`/api/status`, `/api/hats`, `/api/settings`, `/api/reset`, `/api/channel`, `/api/mode`) | — |
 
 ## Must stay in sync between the two sketches
 
 There is no shared library. These pieces are duplicated and must match exactly:
 
-- In `config.h`: `FIRMWARE_VERSION`, the `HatPacket`, `HeartbeatPacket` and `ChannelPacket` struct layouts, `PACKET_MAGIC`, `HEARTBEAT_MAGIC`, `CHANNEL_MAGIC`, `GROUP_ID`, `DEFAULT_CHANNEL`, `CHANNEL_MIN` and `CHANNEL_MAX`. For matching looks, also `NUM_LEDS`, `LED_BRIGHTNESS`, `LED_POWER_MA` and the peak-dot constants.
+- In `config.h`: `FIRMWARE_VERSION`, the `HatPacket`, `HeartbeatPacket` and `ChannelPacket` struct layouts, `PACKET_MAGIC`, `HEARTBEAT_MAGIC`, `CHANNEL_MAGIC`, `GROUP_ID`, `DEFAULT_CHANNEL`, `CHANNEL_MIN`, `CHANNEL_MAX`, the `HatMode` values and `MODE_COUNT`. For matching looks, also `NUM_LEDS`, `LED_BRIGHTNESS`, `LED_POWER_MA` and the peak-dot constants.
 - In `display.cpp`: the receiver's copy is the conductor's plus `renderTimeout()`. Any change to `hatPalette_gp` or `renderBar()` must be made in both.
 
 ## Radio protocol
 
 - ESP-NOW broadcast to `FF:FF:FF:FF:FF:FF` on the broadcast channel: `DEFAULT_CHANNEL` (2) until changed from the Hats view, then whatever was last chosen, saved in flash on every hat. The conductor sends from its access point interface; receivers don't join the access point.
-- Conductor → receivers, about 31 per second, 6-byte packed little-endian packet:
+- Conductor → receivers, about 31 per second, 7-byte packed little-endian packet:
 
 | Byte | Field | Meaning |
 |---|---|---|
@@ -149,6 +160,7 @@ There is no shared library. These pieces are duplicated and must match exactly:
 | 3 | seq | Increments per packet. The receiver uses it to count lost packets |
 | 4 | level | 0–255 bar height |
 | 5 | hue | 0–255 palette index |
+| 6 | mode | Display mode (see Modes view): 0 Reactive. Receivers treat unknown values as Reactive |
 
 - Receiver → broadcast, once per second, 5-byte heartbeat: `magic` = `0x5A52` (bytes 0–1), `group` (byte 2) and `version` (bytes 3–4, the receiver's `FIRMWARE_VERSION`). The conductor identifies each receiver by the sender's MAC address and records the signal strength (RSSI) of each heartbeat. Hats drop out of the online count after 3 s without a heartbeat but stay in the Hats list. Receivers ignore each other's heartbeats because the length differs.
 - Conductor → receivers, 4-byte channel packet: `magic` = `0x5A43` (bytes 0–1), `group` (byte 2), `channel` (byte 3). Sent once per second with the current channel (`CHANNEL_BEACON_MS`), and with every frame for 1.5 s before a channel change, carrying the new channel. A receiver that hears a different channel than its own switches to it. This also corrects a receiver that locked onto a neighboring channel by picking up overlapping signal while scanning.

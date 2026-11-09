@@ -2,6 +2,7 @@
 #include "config.h"
 #include "settings.h"
 #include "radio.h"
+#include "mode.h"
 #include <WebServer.h>
 
 static WebServer server(80);
@@ -60,6 +61,11 @@ tr.gone td{color:#777}
 .chan{align-items:center;margin-top:8px}
 select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;font-size:1rem}
 #chanMsg{font-size:.85rem;color:#fc6;min-height:1.2em;margin:6px 0 16px}
+.mode{display:block;width:100%;text-align:left;padding:14px 16px;margin:10px 0 0;border:2px solid transparent;border-radius:10px;background:#1d1d1d;color:#eee;font-size:1.05rem}
+.mode span{display:block;font-size:.8rem;color:#999;margin-top:2px}
+.mode.on{border-color:#fc6;background:#262014}
+.mode.on b::after{content:'  \25CF';color:#fc6}
+#modeMsg{margin-top:12px;font-size:.85rem;color:#aaa;min-height:1.2em}
 </style>
 </head>
 <body>
@@ -70,6 +76,7 @@ select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;fo
 <nav id="menu" hidden>
 <a href="#tuning" data-view="tuning">Tuning</a>
 <a href="#hats" data-view="hats">Hats</a>
+<a href="#modes" data-view="modes">Modes</a>
 </nav>
 </header>
 
@@ -110,9 +117,15 @@ select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;fo
 </table>
 </section>
 
+<section id="v-modes" hidden>
+<div class="hint">Applies to every receiver at once. Not saved: every hat starts in Reactive after a reboot.</div>
+<button class="mode" data-mode="0"><b>Reactive</b><span>Receivers mirror the conductor's level and pitch color.</span></button>
+<div id="modeMsg"></div>
+</section>
+
 <script>
 const $=id=>document.getElementById(id);
-const VIEWS={tuning:'Tuning',hats:'Hats'};
+const VIEWS={tuning:'Tuning',hats:'Hats',modes:'Modes'};
 let view='tuning',conductorVersion=null;
 
 function setView(v){
@@ -245,10 +258,27 @@ async function pollHats(){
   }catch(e){$('hatTable').classList.add('off')}
 }
 
+function showMode(d){
+  document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on',Number(b.dataset.mode)===d.mode));
+}
+async function postMode(body){
+  try{
+    const r=await fetch('/api/mode',{method:'POST',body:new URLSearchParams(body)});
+    if(!r.ok)throw 0;
+    showMode(await r.json());
+    $('modeMsg').textContent='';
+  }catch(e){$('modeMsg').textContent='Could not reach the hat.'}
+}
+document.querySelectorAll('.mode').forEach(b=>b.addEventListener('click',()=>postMode({mode:b.dataset.mode})));
+async function pollModes(){
+  try{showMode(await (await fetch('/api/mode')).json())}catch(e){}
+}
+
 let timer=null;
 async function pollNow(){
   clearTimeout(timer);
   if(view==='hats'){await pollHats();timer=setTimeout(pollNow,1000)}
+  else if(view==='modes'){await pollModes();timer=setTimeout(pollNow,1000)}
   else{await pollTuning();timer=setTimeout(pollNow,500)}
 }
 fetch('/api/settings').then(r=>r.json()).then(load);
@@ -326,6 +356,20 @@ static void handleChannel() {
   sendJson(buf);
 }
 
+static void sendMode() {
+  char buf[64];
+  snprintf(buf, sizeof(buf), "{\"mode\":%u}", modeCurrent());
+  sendJson(buf);
+}
+
+static void handleModePost() {
+  if (server.hasArg("mode") && !modeSet((uint8_t)server.arg("mode").toInt())) {
+    server.send(400, "text/plain", "bad mode");
+    return;
+  }
+  sendMode();
+}
+
 static void handleReset() {
   settingsReset();
   sendSettings();
@@ -339,6 +383,8 @@ void webBegin() {
   server.on("/api/settings", HTTP_POST, handleSettingsPost);
   server.on("/api/reset", HTTP_POST, handleReset);
   server.on("/api/channel", HTTP_POST, handleChannel);
+  server.on("/api/mode", HTTP_GET, sendMode);
+  server.on("/api/mode", HTTP_POST, handleModePost);
   server.onNotFound([]() {
     server.sendHeader("Location", "/");
     server.send(302, "text/plain", "");
