@@ -64,8 +64,8 @@ constexpr uint16_t HEARTBEAT_MAGIC = 0x5A52;
 constexpr uint16_t CHANNEL_MAGIC = 0x5A43;
 constexpr uint8_t GROUP_ID = 1;
 
-enum HatMode : uint8_t { MODE_REACTIVE = 0, MODE_SLEEP = 1, MODE_DISCO = 2 };
-constexpr uint8_t MODE_COUNT = 3;
+enum HatMode : uint8_t { MODE_REACTIVE = 0, MODE_SLEEP = 1, MODE_DISCO = 2, MODE_RANGED = 3 };
+constexpr uint8_t MODE_COUNT = 4;
 
 struct __attribute__((packed)) HatPacket {
   uint16_t magic;

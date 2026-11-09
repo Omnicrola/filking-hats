@@ -7,6 +7,7 @@ struct RadioState {
   uint8_t level;
   uint8_t hue;
   uint8_t mode;
+  int8_t rssi;
   uint32_t lastRxMs;
   uint32_t count;
   uint32_t lost;

@@ -122,6 +122,7 @@ The mode is **not saved**. The conductor always boots into **Reactive**, and a r
 | Reactive | Mirror the conductor's level and pitch color (the normal behavior) | Normal bar |
 | Sleep | All LEDs off; level and color in the packets are ignored. If the conductor goes silent while they sleep, they stay dark instead of turning red (they still scan for it) | Off |
 | Disco | Bar height follows the music, but each receiver picks its own random palette color every second (`DISCO_COLOR_MS`) | Normal bar |
+| Ranged | Only the first LED lights, colored by the signal strength of the conductor's packets: red at -90 dBm or weaker (`RANGE_RSSI_LOW`), through yellow, to green at -40 dBm or stronger (`RANGE_RSSI_HIGH`). Smoothed over about 0.2 s. Use it to walk the room and find where hats lose the conductor | Normal bar |
 
 ### Access limits
 
@@ -162,7 +163,7 @@ There is no shared library. These pieces are duplicated and must match exactly:
 | 3 | seq | Increments per packet. The receiver uses it to count lost packets |
 | 4 | level | 0–255 bar height |
 | 5 | hue | 0–255 palette index |
-| 6 | mode | Display mode (see Modes view): 0 Reactive, 1 Sleep, 2 Disco. Receivers treat unknown values as Reactive |
+| 6 | mode | Display mode (see Modes view): 0 Reactive, 1 Sleep, 2 Disco, 3 Ranged. Receivers treat unknown values as Reactive |
 
 - Receiver → broadcast, once per second, 5-byte heartbeat: `magic` = `0x5A52` (bytes 0–1), `group` (byte 2) and `version` (bytes 3–4, the receiver's `FIRMWARE_VERSION`). The conductor identifies each receiver by the sender's MAC address and records the signal strength (RSSI) of each heartbeat. Hats drop out of the online count after 3 s without a heartbeat but stay in the Hats list. Receivers ignore each other's heartbeats because the length differs.
 - Conductor → receivers, 4-byte channel packet: `magic` = `0x5A43` (bytes 0–1), `group` (byte 2), `channel` (byte 3). Sent once per second with the current channel (`CHANNEL_BEACON_MS`), and with every frame for 1.5 s before a channel change, carrying the new channel. A receiver that hears a different channel than its own switches to it. This also corrects a receiver that locked onto a neighboring channel by picking up overlapping signal while scanning.

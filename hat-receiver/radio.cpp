@@ -10,6 +10,7 @@ static portMUX_TYPE rxMux = portMUX_INITIALIZER_UNLOCKED;
 static volatile uint8_t rxLevel = 0;
 static volatile uint8_t rxHue = 0;
 static volatile uint8_t rxMode = MODE_REACTIVE;
+static volatile int8_t rxRssi = -127;
 static volatile uint32_t rxTimeMs = 0;
 static volatile uint32_t rxCount = 0;
 static volatile uint32_t rxLost = 0;
@@ -39,6 +40,7 @@ static void onReceive(const esp_now_recv_info_t *info, const uint8_t *data, int 
   rxLevel = pkt.level;
   rxHue = pkt.hue;
   rxMode = pkt.mode;
+  rxRssi = info->rx_ctrl ? (int8_t)info->rx_ctrl->rssi : -127;
   rxTimeMs = millis();
   rxCount++;
   rxAny = true;
@@ -88,6 +90,7 @@ RadioState radioSnapshot() {
   s.level = rxLevel;
   s.hue = rxHue;
   s.mode = rxMode;
+  s.rssi = rxRssi;
   s.lastRxMs = rxTimeMs;
   s.count = rxCount;
   s.lost = rxLost;

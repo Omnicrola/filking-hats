@@ -122,6 +122,7 @@ select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;fo
 <button class="mode" data-mode="0"><b>Reactive</b><span>Receivers mirror the conductor's level and pitch color.</span></button>
 <button class="mode" data-mode="1"><b>Sleep</b><span>All LEDs off. Hats ignore the music until another mode is chosen.</span></button>
 <button class="mode" data-mode="2"><b>Disco</b><span>Bars still follow the music, but each hat jumps to a random color every second.</span></button>
+<button class="mode" data-mode="3"><b>Ranged</b><span>Only the first LED lights, showing the hat's signal strength: red is weak, green is strong.</span></button>
 <div id="modeMsg"></div>
 </section>
 

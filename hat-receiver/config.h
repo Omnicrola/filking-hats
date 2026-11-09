@@ -26,6 +26,9 @@ constexpr uint32_t SIGNAL_TIMEOUT_MS = 5000;
 constexpr uint32_t DEBUG_INTERVAL_MS = 1000;
 constexpr uint32_t HEARTBEAT_INTERVAL_MS = 1000;
 constexpr uint32_t DISCO_COLOR_MS = 1000;
+constexpr float RANGE_RSSI_LOW = -90.0f;
+constexpr float RANGE_RSSI_HIGH = -40.0f;
+constexpr float RSSI_SMOOTHING = 0.05f;
 
 constexpr uint8_t DEFAULT_CHANNEL = 2;
 constexpr uint8_t CHANNEL_MIN = 1;
@@ -36,8 +39,8 @@ constexpr uint16_t HEARTBEAT_MAGIC = 0x5A52;
 constexpr uint16_t CHANNEL_MAGIC = 0x5A43;
 constexpr uint8_t GROUP_ID = 1;
 
-enum HatMode : uint8_t { MODE_REACTIVE = 0, MODE_SLEEP = 1, MODE_DISCO = 2 };
-constexpr uint8_t MODE_COUNT = 3;
+enum HatMode : uint8_t { MODE_REACTIVE = 0, MODE_SLEEP = 1, MODE_DISCO = 2, MODE_RANGED = 3 };
+constexpr uint8_t MODE_COUNT = 4;
 
 struct __attribute__((packed)) HeartbeatPacket {
   uint16_t magic;

@@ -63,3 +63,10 @@ void renderOff() {
   FastLED.show();
   peakPos = 0;
 }
+
+void renderRanged(uint8_t strength) {
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  leds[0] = CHSV(scale8(strength, HUE_GREEN), 255, 255);
+  FastLED.show();
+  peakPos = 0;
+}

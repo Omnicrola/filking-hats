@@ -7,3 +7,4 @@ void startupChase();
 void renderBar(uint8_t level, uint8_t hue);
 void renderOff();
 void renderTimeout();
+void renderRanged(uint8_t strength);

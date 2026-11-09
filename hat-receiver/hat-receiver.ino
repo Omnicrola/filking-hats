@@ -9,6 +9,7 @@ uint32_t lastDebugMs = 0;
 uint32_t lastHeartbeatMs = 0;
 uint32_t lastDiscoMs = 0;
 uint8_t discoHue = 0;
+float rssiF = RANGE_RSSI_LOW;
 
 void setup() {
 #if DEBUG
@@ -37,7 +38,14 @@ void loop() {
     else renderTimeout();
     levelF = 0;
   } else if (rx.any) {
+    rssiF += (rx.rssi - rssiF) * RSSI_SMOOTHING;
     switch (rx.mode) {
+      case MODE_RANGED: {
+        float t = constrain((rssiF - RANGE_RSSI_LOW) / (RANGE_RSSI_HIGH - RANGE_RSSI_LOW), 0.0f, 1.0f);
+        renderRanged((uint8_t)(t * 255));
+        levelF = 0;
+        break;
+      }
       case MODE_SLEEP:
         renderOff();
         levelF = 0;
@@ -66,7 +74,8 @@ void loop() {
 
   if (now - lastDebugMs >= DEBUG_INTERVAL_MS) {
     lastDebugMs = now;
-    DBG("ch %u rx %lu lost %lu lvl %3u hue %3u age %lums%s\n", radioChannel(), (unsigned long)rx.count,
-        (unsigned long)rx.lost, rx.level, rx.hue, (unsigned long)since, timedOut ? " SCANNING" : "");
+    DBG("ch %u mode %u rssi %.0f rx %lu lost %lu lvl %3u hue %3u age %lums%s\n", radioChannel(), rx.mode, rssiF,
+        (unsigned long)rx.count, (unsigned long)rx.lost, rx.level, rx.hue, (unsigned long)since,
+        timedOut ? " SCANNING" : "");
   }
 }
