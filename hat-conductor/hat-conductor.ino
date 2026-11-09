@@ -21,7 +21,24 @@ void setup() {
       radioOk ? "ok" : "FAIL", radioChannel(), WiFi.softAPIP().toString().c_str());
 }
 
+void metronomeLoop() {
+  static uint32_t lastFrameMs = 0;
+  uint32_t now = millis();
+  if (now - lastFrameMs >= METRONOME_FRAME_MS) {
+    lastFrameMs = now;
+    uint8_t level, hue;
+    metronomeFrame(level, hue);
+    broadcast(level, hue, MODE_METRONOME);
+    renderBar(level, hue);
+  }
+  webHandle();
+}
+
 void loop() {
+  if (modeCurrent() == MODE_METRONOME) {
+    metronomeLoop();
+    return;
+  }
   AudioFrame f = audioProcess();
   broadcast(f.level, f.hue, modeCurrent());
   if (modeCurrent() == MODE_SLEEP) renderOff();

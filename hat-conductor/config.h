@@ -64,8 +64,17 @@ constexpr uint16_t HEARTBEAT_MAGIC = 0x5A52;
 constexpr uint16_t CHANNEL_MAGIC = 0x5A43;
 constexpr uint8_t GROUP_ID = 1;
 
-enum HatMode : uint8_t { MODE_REACTIVE = 0, MODE_SLEEP = 1, MODE_DISCO = 2, MODE_RANGED = 3 };
-constexpr uint8_t MODE_COUNT = 4;
+enum HatMode : uint8_t { MODE_REACTIVE = 0, MODE_SLEEP = 1, MODE_DISCO = 2, MODE_RANGED = 3, MODE_METRONOME = 4 };
+constexpr uint8_t MODE_COUNT = 5;
+
+constexpr uint16_t BPM_MIN = 40;
+constexpr uint16_t BPM_MAX = 300;
+constexpr uint16_t DEFAULT_BPM = 120;
+constexpr uint32_t METRONOME_FRAME_MS = 10;
+constexpr uint32_t METRONOME_FLASH_MS = 150;
+constexpr uint8_t METRONOME_BEATS_PER_BAR = 4;
+constexpr uint8_t METRONOME_ACCENT_HUE = 255;
+constexpr uint8_t METRONOME_BEAT_HUE = 85;
 
 struct __attribute__((packed)) HatPacket {
   uint16_t magic;

@@ -40,6 +40,10 @@ void loop() {
   } else if (rx.any) {
     rssiF += (rx.rssi - rssiF) * RSSI_SMOOTHING;
     switch (rx.mode) {
+      case MODE_METRONOME:
+        levelF = rx.level;
+        renderBar(rx.level, rx.hue);
+        break;
       case MODE_RANGED: {
         float t = constrain((rssiF - RANGE_RSSI_LOW) / (RANGE_RSSI_HIGH - RANGE_RSSI_LOW), 0.0f, 1.0f);
         renderRanged((uint8_t)(t * 255));

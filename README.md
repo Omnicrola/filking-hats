@@ -115,7 +115,7 @@ Receivers that were off or out of range find the new channel by scanning (see Be
 
 One button per display mode; the active one has a gold outline. Tapping a button switches every receiver within one packet (about 30 ms).
 
-The mode is **not saved**. The conductor always boots into **Reactive**, and a receiver boots into Reactive and stays there until it hears the conductor's first packet.
+The mode and tempo are **not saved**; the tempo starts at 120 BPM. The conductor always boots into **Reactive**, and a receiver boots into Reactive and stays there until it hears the conductor's first packet.
 
 | Mode | Receivers | Conductor's own strip |
 |---|---|---|
@@ -123,6 +123,7 @@ The mode is **not saved**. The conductor always boots into **Reactive**, and a r
 | Sleep | All LEDs off; level and color in the packets are ignored. If the conductor goes silent while they sleep, they stay dark instead of turning red (they still scan for it) | Off |
 | Disco | Bar height follows the music, but each receiver picks its own random palette color every second (`DISCO_COLOR_MS`) | Normal bar |
 | Ranged | Only the first LED lights, colored by the signal strength of the conductor's packets: red at -90 dBm or weaker (`RANGE_RSSI_LOW`), through yellow, to green at -40 dBm or stronger (`RANGE_RSSI_HIGH`). Smoothed over about 0.2 s. Use it to walk the room and find where hats lose the conductor | Normal bar |
+| Metronome | Flash on the beat at the **Tempo** slider's BPM (40–300, default 120, `BPM_MIN`/`BPM_MAX`/`DEFAULT_BPM`): the full bar lights and fades over 150 ms (`METRONOME_FLASH_MS`, shorter at fast tempos). The first beat of each bar of 4 is white, the others orange. No smoothing, so the flash is sharp | Same flashes. The microphone is ignored and the Tuning view's dB/Hz readouts freeze; packets go out every 10 ms (`METRONOME_FRAME_MS`) for tighter timing |
 
 ### Access limits
 
@@ -141,7 +142,7 @@ Each sketch folder is self-contained. The Arduino IDE opens the extra files as t
 | `audio.h/.cpp` | I2S mic, high-pass filter, RMS/AGC level, FFT hue | — |
 | `radio.h/.cpp` | Access point and ESP-NOW setup, `broadcast()` (including the channel beacon and switch), the seen-hats list (ID, signal, version, last seen), `radioReceiverCount()` and `radioHats()` | ESP-NOW setup, receive callback, thread-safe `radioSnapshot()`, `radioSendHeartbeat()`, `radioHatId()`, `radioUpdate()` (channel following and scanning, saved to flash) |
 | `settings.h/.cpp` | Web-adjustable settings and the broadcast channel, saved to flash | — |
-| `mode.h/.cpp` | The current display mode (RAM only) | — |
+| `mode.h/.cpp` | The current display mode and metronome tempo (RAM only), and the metronome beat generator | — |
 | `web.h/.cpp` | Web server, the control page with its Tuning, Hats and Modes views (embedded HTML), and the JSON API (`/api/status`, `/api/hats`, `/api/settings`, `/api/reset`, `/api/channel`, `/api/mode`) | — |
 
 ## Must stay in sync between the two sketches
@@ -154,7 +155,7 @@ There is no shared library. These pieces are duplicated and must match exactly:
 ## Radio protocol
 
 - ESP-NOW broadcast to `FF:FF:FF:FF:FF:FF` on the broadcast channel: `DEFAULT_CHANNEL` (2) until changed from the Hats view, then whatever was last chosen, saved in flash on every hat. The conductor sends from its access point interface; receivers don't join the access point.
-- Conductor → receivers, about 31 per second, 7-byte packed little-endian packet:
+- Conductor → receivers, about 31 per second (100 per second in Metronome mode), 7-byte packed little-endian packet:
 
 | Byte | Field | Meaning |
 |---|---|---|
@@ -163,7 +164,7 @@ There is no shared library. These pieces are duplicated and must match exactly:
 | 3 | seq | Increments per packet. The receiver uses it to count lost packets |
 | 4 | level | 0–255 bar height |
 | 5 | hue | 0–255 palette index |
-| 6 | mode | Display mode (see Modes view): 0 Reactive, 1 Sleep, 2 Disco, 3 Ranged. Receivers treat unknown values as Reactive |
+| 6 | mode | Display mode (see Modes view): 0 Reactive, 1 Sleep, 2 Disco, 3 Ranged, 4 Metronome. Receivers treat unknown values as Reactive |
 
 - Receiver → broadcast, once per second, 5-byte heartbeat: `magic` = `0x5A52` (bytes 0–1), `group` (byte 2) and `version` (bytes 3–4, the receiver's `FIRMWARE_VERSION`). The conductor identifies each receiver by the sender's MAC address and records the signal strength (RSSI) of each heartbeat. Hats drop out of the online count after 3 s without a heartbeat but stay in the Hats list. Receivers ignore each other's heartbeats because the length differs.
 - Conductor → receivers, 4-byte channel packet: `magic` = `0x5A43` (bytes 0–1), `group` (byte 2), `channel` (byte 3). Sent once per second with the current channel (`CHANNEL_BEACON_MS`), and with every frame for 1.5 s before a channel change, carrying the new channel. A receiver that hears a different channel than its own switches to it. This also corrects a receiver that locked onto a neighboring channel by picking up overlapping signal while scanning.

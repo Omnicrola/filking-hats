@@ -123,6 +123,10 @@ select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;fo
 <button class="mode" data-mode="1"><b>Sleep</b><span>All LEDs off. Hats ignore the music until another mode is chosen.</span></button>
 <button class="mode" data-mode="2"><b>Disco</b><span>Bars still follow the music, but each hat jumps to a random color every second.</span></button>
 <button class="mode" data-mode="3"><b>Ranged</b><span>Only the first LED lights, showing the hat's signal strength: red is weak, green is strong.</span></button>
+<button class="mode" data-mode="4"><b>Metronome</b><span>Every hat flashes on the beat instead of following the music. White marks the first beat of each bar of 4.</span></button>
+<label for="bpm">Tempo <output id="bpm_o"></output></label>
+<input type="range" id="bpm" step="1">
+<div class="ends"><span id="bpm_min"></span><span id="bpm_max"></span></div>
 <div id="modeMsg"></div>
 </section>
 
@@ -263,7 +267,13 @@ async function pollHats(){
 
 function showMode(d){
   document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('on',Number(b.dataset.mode)===d.mode));
+  const s=$('bpm');
+  s.min=d.bpmLimits[0];s.max=d.bpmLimits[1];
+  $('bpm_min').textContent=d.bpmLimits[0]+' BPM';$('bpm_max').textContent=d.bpmLimits[1]+' BPM';
+  if(document.activeElement!==s){s.value=d.bpm;$('bpm_o').textContent=d.bpm+' BPM'}
 }
+$('bpm').addEventListener('input',()=>{$('bpm_o').textContent=$('bpm').value+' BPM'});
+$('bpm').addEventListener('change',()=>{postMode({bpm:$('bpm').value});$('bpm').blur()});
 async function postMode(body){
   try{
     const r=await fetch('/api/mode',{method:'POST',body:new URLSearchParams(body)});
@@ -360,14 +370,19 @@ static void handleChannel() {
 }
 
 static void sendMode() {
-  char buf[64];
-  snprintf(buf, sizeof(buf), "{\"mode\":%u}", modeCurrent());
+  char buf[96];
+  snprintf(buf, sizeof(buf), "{\"mode\":%u,\"bpm\":%u,\"bpmLimits\":[%u,%u]}", modeCurrent(), modeBpm(), BPM_MIN,
+           BPM_MAX);
   sendJson(buf);
 }
 
 static void handleModePost() {
   if (server.hasArg("mode") && !modeSet((uint8_t)server.arg("mode").toInt())) {
     server.send(400, "text/plain", "bad mode");
+    return;
+  }
+  if (server.hasArg("bpm") && !modeSetBpm((uint16_t)server.arg("bpm").toInt())) {
+    server.send(400, "text/plain", "bad bpm");
     return;
   }
   sendMode();
