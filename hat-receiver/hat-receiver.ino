@@ -7,6 +7,8 @@ uint32_t timeoutStartMs = 0;
 uint32_t lastFrameMs = 0;
 uint32_t lastDebugMs = 0;
 uint32_t lastHeartbeatMs = 0;
+uint32_t lastDiscoMs = 0;
+uint8_t discoHue = 0;
 
 void setup() {
 #if DEBUG
@@ -39,6 +41,14 @@ void loop() {
       case MODE_SLEEP:
         renderOff();
         levelF = 0;
+        break;
+      case MODE_DISCO:
+        if (now - lastDiscoMs >= DISCO_COLOR_MS) {
+          lastDiscoMs = now;
+          discoHue = esp_random() & 0xFF;
+        }
+        levelF += (rx.level - levelF) * LEVEL_SMOOTHING;
+        renderBar((uint8_t)roundf(levelF), discoHue);
         break;
       default:
         levelF += (rx.level - levelF) * LEVEL_SMOOTHING;

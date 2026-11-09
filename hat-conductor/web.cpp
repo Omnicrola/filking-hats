@@ -121,6 +121,7 @@ select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;fo
 <div class="hint">Applies to every receiver at once. Not saved: every hat starts in Reactive after a reboot.</div>
 <button class="mode" data-mode="0"><b>Reactive</b><span>Receivers mirror the conductor's level and pitch color.</span></button>
 <button class="mode" data-mode="1"><b>Sleep</b><span>All LEDs off. Hats ignore the music until another mode is chosen.</span></button>
+<button class="mode" data-mode="2"><b>Disco</b><span>Bars still follow the music, but each hat jumps to a random color every second.</span></button>
 <div id="modeMsg"></div>
 </section>
 
