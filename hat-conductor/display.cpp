@@ -51,3 +51,9 @@ void renderBar(uint8_t level, uint8_t hue) {
   if (p >= lit && p < NUM_LEDS) leds[p] = c;
   FastLED.show();
 }
+
+void renderOff() {
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  FastLED.show();
+  peakPos = 0;
+}

@@ -120,6 +120,7 @@ The mode is **not saved**. The conductor always boots into **Reactive**, and a r
 | Mode | Receivers | Conductor's own strip |
 |---|---|---|
 | Reactive | Mirror the conductor's level and pitch color (the normal behavior) | Normal bar |
+| Sleep | All LEDs off; level and color in the packets are ignored. If the conductor goes silent while they sleep, they stay dark instead of turning red (they still scan for it) | Off |
 
 ### Access limits
 
@@ -160,7 +161,7 @@ There is no shared library. These pieces are duplicated and must match exactly:
 | 3 | seq | Increments per packet. The receiver uses it to count lost packets |
 | 4 | level | 0–255 bar height |
 | 5 | hue | 0–255 palette index |
-| 6 | mode | Display mode (see Modes view): 0 Reactive. Receivers treat unknown values as Reactive |
+| 6 | mode | Display mode (see Modes view): 0 Reactive, 1 Sleep. Receivers treat unknown values as Reactive |
 
 - Receiver → broadcast, once per second, 5-byte heartbeat: `magic` = `0x5A52` (bytes 0–1), `group` (byte 2) and `version` (bytes 3–4, the receiver's `FIRMWARE_VERSION`). The conductor identifies each receiver by the sender's MAC address and records the signal strength (RSSI) of each heartbeat. Hats drop out of the online count after 3 s without a heartbeat but stay in the Hats list. Receivers ignore each other's heartbeats because the length differs.
 - Conductor → receivers, 4-byte channel packet: `magic` = `0x5A43` (bytes 0–1), `group` (byte 2), `channel` (byte 3). Sent once per second with the current channel (`CHANNEL_BEACON_MS`), and with every frame for 1.5 s before a channel change, carrying the new channel. A receiver that hears a different channel than its own switches to it. This also corrects a receiver that locked onto a neighboring channel by picking up overlapping signal while scanning.

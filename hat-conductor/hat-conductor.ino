@@ -24,7 +24,8 @@ void setup() {
 void loop() {
   AudioFrame f = audioProcess();
   broadcast(f.level, f.hue, modeCurrent());
-  renderBar(f.level, f.hue);
+  if (modeCurrent() == MODE_SLEEP) renderOff();
+  else renderBar(f.level, f.hue);
   webUpdate(f);
   webHandle();
   DBG("db %6.1f ref %6.1f lvl %3u f %6.0f hue %3u rx %d%s\n", f.db, f.refDb, f.level, f.freq, f.hue,

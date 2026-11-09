@@ -31,10 +31,15 @@ void loop() {
   bool timedOut = since > SIGNAL_TIMEOUT_MS;
 
   if (timedOut) {
-    renderTimeout();
+    if (rx.mode == MODE_SLEEP) renderOff();
+    else renderTimeout();
     levelF = 0;
   } else if (rx.any) {
     switch (rx.mode) {
+      case MODE_SLEEP:
+        renderOff();
+        levelF = 0;
+        break;
       default:
         levelF += (rx.level - levelF) * LEVEL_SMOOTHING;
         renderBar((uint8_t)roundf(levelF), rx.hue);

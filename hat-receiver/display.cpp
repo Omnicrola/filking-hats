@@ -57,3 +57,9 @@ void renderTimeout() {
   FastLED.show();
   peakPos = 0;
 }
+
+void renderOff() {
+  fill_solid(leds, NUM_LEDS, CRGB::Black);
+  FastLED.show();
+  peakPos = 0;
+}
