@@ -32,7 +32,9 @@ h2{font-size:1rem;margin:24px 0 0;color:#ccc}
 .card{background:#1d1d1d;border-radius:10px;padding:12px 6px;text-align:center}
 .card b{display:block;font-size:1.6rem;font-variant-numeric:tabular-nums}
 .card span{font-size:.75rem;color:#aaa}
-.meter{height:10px;background:#1d1d1d;border-radius:5px;margin:12px 0 0;overflow:hidden}
+.tap{cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent}
+.tap:active{background:#2a2a2a}
+.card span.tapHint::after{content:' \21C4';color:#fc6}.meter{height:10px;background:#1d1d1d;border-radius:5px;margin:12px 0 0;overflow:hidden}
 .meter div{height:100%;width:0;background:linear-gradient(90deg,#d22,#f90,#2c2,#fff);transition:width .2s}
 label{display:flex;justify-content:space-between;margin:18px 0 6px;font-size:.95rem}
 label output{color:#fc6;font-variant-numeric:tabular-nums}
@@ -75,7 +77,7 @@ select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;fo
 <div class="cards" id="cards">
 <div class="card"><b id="rx">&ndash;</b><span>receivers</span></div>
 <div class="card"><b id="db">&ndash;</b><span>dBFS</span></div>
-<div class="card"><b id="hz">&ndash;</b><span>Hz</span></div>
+<div class="card tap" id="hzCard" role="button" tabindex="0" aria-label="Toggle between frequency and note"><b id="hz">&ndash;</b><span id="hzUnit">Hz</span></div>
 </div>
 <div class="meter"><div id="lvl"></div></div>
 <h2>Settings</h2>
@@ -160,13 +162,35 @@ $('reset').addEventListener('click',()=>{
   if(confirm('Reset all settings to their defaults? This overwrites the saved values.'))post('/api/reset',null,'Defaults restored.');
 });
 
+const NOTES=['C','C&#9839;','D','D&#9839;','E','F','F&#9839;','G','G&#9839;','A','A&#9839;','B'];
+let showNote=false,lastHz=null;
+try{showNote=localStorage.getItem('hzMode')==='note'}catch(e){}
+function noteName(f){
+  const n=Math.round(12*Math.log2(f/440)+69);
+  return NOTES[((n%12)+12)%12]+(Math.floor(n/12)-1);
+}
+function showHz(){
+  $('hz').innerHTML=lastHz===null?'&ndash;':showNote?noteName(lastHz):Math.round(lastHz);
+  $('hzUnit').textContent=showNote?'note':'Hz';
+}
+function toggleHz(){
+  showNote=!showNote;
+  try{localStorage.setItem('hzMode',showNote?'note':'hz')}catch(e){}
+  showHz();
+}
+$('hzCard').addEventListener('click',toggleHz);
+$('hzCard').addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggleHz()}});
+$('hzUnit').classList.add('tapHint');
+showHz();
+
 async function pollTuning(){
   try{
     const s=await (await fetch('/api/status')).json();
     setVersion(s.version);
     $('rx').textContent=s.receivers;
     $('db').textContent=s.db.toFixed(0);
-    $('hz').innerHTML=s.gated?'&ndash;':Math.round(s.freq);
+    lastHz=s.gated||!(s.freq>0)?null:s.freq;
+    showHz();
     $('lvl').style.width=(s.level/2.55)+'%';
     $('cards').classList.remove('off');
   }catch(e){$('cards').classList.add('off')}

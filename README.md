@@ -78,7 +78,7 @@ The **☰** menu at the top left switches between two views: **Tuning** and **Ha
 Refreshes twice a second and shows:
 - **Receivers:** hats whose heartbeat arrived in the last 3 s (`RECEIVER_TIMEOUT_MS`).
 - **dBFS:** the current mic level after the high-pass filter. 0 is the mic's maximum; quieter is more negative.
-- **Hz:** the dominant frequency. It shows "–" while the sound is below the noise floor.
+- **Hz:** the dominant frequency. It shows "–" while the sound is below the noise floor. **Tap it** to switch to the nearest note in standard 12-tone equal temperament (A4 = 440 Hz), shown with its octave number, e.g. `A4` or `C♯5`. Tap again to switch back. The phone's browser remembers the choice.
 - A level bar mirroring the LEDs.
 
 Settings (sliders, then **Save**):

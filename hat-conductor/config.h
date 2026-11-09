@@ -4,7 +4,7 @@
 
 #define DEBUG 1
 
-constexpr uint16_t FIRMWARE_VERSION = 2;
+constexpr uint16_t FIRMWARE_VERSION = 3;
 
 #if DEBUG
 #define DBG(...) Serial.printf(__VA_ARGS__)
