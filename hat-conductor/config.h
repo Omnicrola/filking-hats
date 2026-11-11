@@ -4,7 +4,7 @@
 
 #define DEBUG 1
 
-constexpr uint16_t FIRMWARE_VERSION = 6;
+constexpr uint16_t FIRMWARE_VERSION = 7;
 
 #if DEBUG
 #define DBG(...) Serial.printf(__VA_ARGS__)
@@ -57,6 +57,8 @@ constexpr uint8_t AP_MAX_CLIENTS = 2;
 constexpr int MAX_RECEIVERS = 32;
 constexpr uint32_t RECEIVER_TIMEOUT_MS = 3000;
 constexpr uint32_t BELL_ACTIVE_MS = 5000;
+constexpr int BELL_LOW_NOTE = 39;
+constexpr int BELL_NOTES = 33;
 
 constexpr uint8_t DEFAULT_CHANNEL = 2;
 constexpr uint8_t CHANNEL_MIN = 1;

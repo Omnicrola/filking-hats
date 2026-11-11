@@ -18,6 +18,7 @@ static int bandLo[NUM_LEDS];
 static int bandHi[NUM_LEDS];
 static float bandRefDb = MIN_REF_DBFS;
 static float bandF[NUM_LEDS];
+static float noteCoeff[BELL_NOTES];
 
 static float hpfCutoffHz = 0;
 static float hb0, hb1, hb2, ha1, ha2;
@@ -89,6 +90,10 @@ static void bandBins(int i, int n, int &kLo, int &kHi) {
 
 static void bandsInit() {
   for (int i = 0; i < NUM_LEDS; i++) bandBins(i, NUM_LEDS, bandLo[i], bandHi[i]);
+  for (int n = 0; n < BELL_NOTES; n++) {
+    float hz = 440.0f * powf(2.0f, (BELL_LOW_NOTE + n - 69) / 12.0f);
+    noteCoeff[n] = 2.0f * cosf(2.0f * PI * hz / SAMPLE_RATE);
+  }
 }
 
 static void specCompute() {
@@ -194,18 +199,23 @@ AudioFrame audioProcess(bool spectrum) {
   return frame;
 }
 
-int audioDominantBand(int bands, bool gated) {
-  if (gated || bands < 1) return -1;
-  specCompute();
+int audioDominantNote(bool gated) {
+  if (gated) return -1;
+  memcpy(sReal, specRing, sizeof(sReal));
+  specFft.windowing(FFTWindow::Hann, FFTDirection::Forward);
   int best = -1;
   float bestPower = 0;
-  for (int i = 0; i < bands; i++) {
-    int kLo, kHi;
-    bandBins(i, bands, kLo, kHi);
-    float p = binPower(kLo, kHi);
+  for (int n = 0; n < BELL_NOTES; n++) {
+    float c = noteCoeff[n], s1 = 0, s2 = 0;
+    for (int i = 0; i < SPECTRUM_SAMPLES; i++) {
+      float s0 = sReal[i] + c * s1 - s2;
+      s2 = s1;
+      s1 = s0;
+    }
+    float p = s1 * s1 + s2 * s2 - c * s1 * s2;
     if (p > bestPower) {
       bestPower = p;
-      best = i;
+      best = n;
     }
   }
   return best;

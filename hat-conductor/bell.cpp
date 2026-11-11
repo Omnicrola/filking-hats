@@ -9,7 +9,8 @@ static uint32_t lastMs = 0;
 
 void bellFrame(const AudioFrame &frame) {
   int receivers = radioActiveHats(macs, BELL_MAX_RECEIVERS, BELL_ACTIVE_MS);
-  int winner = audioDominantBand(receivers + 1, frame.gated);
+  int note = audioDominantNote(frame.gated);
+  int winner = note < 0 ? -1 : note * (receivers + 1) / BELL_NOTES;
   broadcastBell(macs, receivers, winner);
 
   uint32_t now = millis();

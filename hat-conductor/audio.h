@@ -15,4 +15,4 @@ struct AudioFrame {
 
 bool audioBegin();
 AudioFrame audioProcess(bool spectrum);
-int audioDominantBand(int bands, bool gated);
+int audioDominantNote(bool gated);
