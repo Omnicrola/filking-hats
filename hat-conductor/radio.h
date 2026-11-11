@@ -13,6 +13,8 @@ struct HatInfo {
 bool radioBegin();
 void broadcast(uint8_t level, uint8_t hue, uint8_t mode);
 void broadcastSpectrum(const uint8_t *bands);
+int radioActiveHats(uint8_t (*macs)[6], int max, uint32_t windowMs);
+void broadcastBell(const uint8_t (*macs)[6], int count, int winner);
 int radioReceiverCount();
 int radioHats(HatInfo *out, int max);
 uint8_t radioChannel();

@@ -125,6 +125,7 @@ The mode and tempo are **not saved**; the tempo starts at 120 BPM. The conductor
 | Ranged | Only the first LED lights, colored by the signal strength of the conductor's packets: red at -90 dBm or weaker (`RANGE_RSSI_LOW`), through yellow, to green at -40 dBm or stronger (`RANGE_RSSI_HIGH`). Smoothed over about 0.2 s. Use it to walk the room and find where hats lose the conductor | Normal bar |
 | Metronome | Flash on the beat at the **Tempo** slider's BPM (40–300, default 120, `BPM_MIN`/`BPM_MAX`/`DEFAULT_BPM`): the full bar lights and fades over 150 ms (`METRONOME_FLASH_MS`, shorter at fast tempos). The first beat of each bar of 4 is white, the others orange. No smoothing, so the flash is sharp | Same flashes. The microphone is ignored and the Tuning view's dB/Hz readouts freeze; packets go out every 10 ms (`METRONOME_FRAME_MS`) for tighter timing |
 | Frequency | The whole strip stays lit; LED 0 (bottom) to LED 14 (top) each show one slice of **80–500 Hz** (`SPECTRUM_LOW_HZ`/`SPECTRUM_HIGH_HZ`), log-spaced so each LED covers the same musical interval (about two semitones). Each LED keeps its palette color by position (red at the bottom to white at the top) and its brightness follows that slice's volume, never dropping below a dim glow (`FREQ_MIN_BRIGHTNESS`, 8 of 255). Same volume handling as Reactive: the noise floor blanks every slice, gain recovery decay sets how fast sensitivity returns, and bar decay sets how fast each LED dims | Same display |
+| Bell Choir | Each hat is one "bell" owning a slice of **80–500 Hz**. The active hats (the conductor plus every receiver heard in the last 5 s, `BELL_ACTIVE_MS`) split the range into equal log-spaced slices: the conductor always takes the lowest, receivers follow in MAC-address order. When a hat joins or drops out, the slices are redistributed on the next update. Each hat shows one solid palette color by its position (lowest red, through gold and green, highest white). Every update, the single loudest slice wins: its hat jumps to full brightness, and every other hat fades linearly to the dim glow over 1 s (`BELL_DECAY_MS`). Below the noise floor nobody wins and all fade. A receiver not yet in the conductor's list glows dim red | Takes the lowest slice and behaves like any other bell |
 
 ### Access limits
 
@@ -143,6 +144,7 @@ Each sketch folder is self-contained. The Arduino IDE opens the extra files as t
 | `audio.h/.cpp` | I2S mic, high-pass filter, RMS/AGC level, FFT hue, and the 2048-point 80–500 Hz band analysis for Frequency mode | — |
 | `radio.h/.cpp` | Access point and ESP-NOW setup, `broadcast()` (including the channel beacon and switch), the seen-hats list (ID, signal, version, last seen), `radioReceiverCount()` and `radioHats()` | ESP-NOW setup, receive callback, thread-safe `radioSnapshot()`, `radioSendHeartbeat()`, `radioHatId()`, `radioUpdate()` (channel following and scanning, saved to flash) |
 | `settings.h/.cpp` | Web-adjustable settings and the broadcast channel, saved to flash | — |
+| `bell.h/.cpp` | Bell Choir: active-hat list, dominant slice, bell packet and the conductor's own bell | — |
 | `mode.h/.cpp` | The current display mode and metronome tempo (RAM only), and the metronome beat generator | — |
 | `web.h/.cpp` | Web server, the control page with its Tuning, Hats and Modes views (embedded HTML), and the JSON API (`/api/status`, `/api/hats`, `/api/settings`, `/api/reset`, `/api/channel`, `/api/mode`) | — |
 
@@ -150,7 +152,7 @@ Each sketch folder is self-contained. The Arduino IDE opens the extra files as t
 
 There is no shared library. These pieces are duplicated and must match exactly:
 
-- In `config.h`: `FIRMWARE_VERSION`, the `HatPacket`, `HeartbeatPacket`, `ChannelPacket` and `SpectrumPacket` struct layouts, `PACKET_MAGIC`, `HEARTBEAT_MAGIC`, `CHANNEL_MAGIC`, `SPECTRUM_MAGIC`, `GROUP_ID`, `DEFAULT_CHANNEL`, `CHANNEL_MIN`, `CHANNEL_MAX`, the `HatMode` values, `MODE_COUNT` and `FREQ_MIN_BRIGHTNESS`. For matching looks, also `NUM_LEDS`, `LED_BRIGHTNESS`, `LED_POWER_MA` and the peak-dot constants.
+- In `config.h`: `FIRMWARE_VERSION`, the `HatPacket`, `HeartbeatPacket`, `ChannelPacket`, `SpectrumPacket` and `BellPacket` struct layouts, `PACKET_MAGIC`, `HEARTBEAT_MAGIC`, `CHANNEL_MAGIC`, `SPECTRUM_MAGIC`, `BELL_MAGIC`, `BELL_MAX_RECEIVERS`, `BELL_DECAY_MS`, `GROUP_ID`, `DEFAULT_CHANNEL`, `CHANNEL_MIN`, `CHANNEL_MAX`, the `HatMode` values, `MODE_COUNT` and `FREQ_MIN_BRIGHTNESS`. For matching looks, also `NUM_LEDS`, `LED_BRIGHTNESS`, `LED_POWER_MA` and the peak-dot constants.
 - In `display.cpp`: the receiver's copy is the conductor's plus `renderTimeout()`. Any change to `hatPalette_gp` or `renderBar()` must be made in both.
 
 ## Radio protocol
@@ -165,10 +167,11 @@ There is no shared library. These pieces are duplicated and must match exactly:
 | 3 | seq | Increments per packet. The receiver uses it to count lost packets |
 | 4 | level | 0–255 bar height |
 | 5 | hue | 0–255 palette index |
-| 6 | mode | Display mode (see Modes view): 0 Reactive, 1 Sleep, 2 Disco, 3 Ranged, 4 Metronome, 5 Frequency. Receivers treat unknown values as Reactive |
+| 6 | mode | Display mode (see Modes view): 0 Reactive, 1 Sleep, 2 Disco, 3 Ranged, 4 Metronome, 5 Frequency, 6 Bell Choir. Receivers treat unknown values as Reactive |
 
 - Conductor → receivers, Frequency mode only, right after each data packet: 18-byte spectrum packet: `magic` = `0x5A53` (bytes 0–1), `group` (byte 2), then one 0–255 brightness per LED (bytes 3–17, bottom LED first). Its size depends on `NUM_LEDS`, so that must match on every hat.
-- Receiver → broadcast, once per second, 5-byte heartbeat: `magic` = `0x5A52` (bytes 0–1), `group` (byte 2) and `version` (bytes 3–4, the receiver's `FIRMWARE_VERSION`). The conductor identifies each receiver by the sender's MAC address and records the signal strength (RSSI) of each heartbeat. Hats drop out of the online count after 3 s without a heartbeat but stay in the Hats list. Receivers ignore each other's heartbeats because the length differs; every packet type has a different length (4, 5, 7 and 18 bytes).
+- Conductor → receivers, Bell Choir mode only, right after each data packet: 197-byte bell packet: `magic` = `0x5A42` (bytes 0–1), `group` (byte 2), `count` (byte 3: number of bells including the conductor), `winner` (byte 4: index of the loudest bell, 0 = conductor, `0xFF` = none), then the full MAC address of each receiver bell in order (6 bytes each, room for 32). A receiver at list position *p* is bell *p* + 1. The packet is always full size so its length can't collide with the other packet types.
+- Receiver → broadcast, once per second, 5-byte heartbeat: `magic` = `0x5A52` (bytes 0–1), `group` (byte 2) and `version` (bytes 3–4, the receiver's `FIRMWARE_VERSION`). The conductor identifies each receiver by the sender's MAC address and records the signal strength (RSSI) of each heartbeat. Hats drop out of the online count after 3 s without a heartbeat but stay in the Hats list. Receivers ignore each other's heartbeats because the length differs; every packet type has a different length (4, 5, 7, 18 and 197 bytes).
 - Conductor → receivers, 4-byte channel packet: `magic` = `0x5A43` (bytes 0–1), `group` (byte 2), `channel` (byte 3). Sent once per second with the current channel (`CHANNEL_BEACON_MS`), and with every frame for 1.5 s before a channel change, carrying the new channel. A receiver that hears a different channel than its own switches to it. This also corrects a receiver that locked onto a neighboring channel by picking up overlapping signal while scanning.
 
 ## Palette

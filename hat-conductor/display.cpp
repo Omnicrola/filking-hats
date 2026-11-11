@@ -67,3 +67,11 @@ void renderSpectrum(const uint8_t *bands) {
   FastLED.show();
   peakPos = 0;
 }
+
+void renderSolid(uint8_t hue, uint8_t brightness) {
+  CRGB c = palette[hue];
+  c.nscale8_video(brightness);
+  fill_solid(leds, NUM_LEDS, c);
+  FastLED.show();
+  peakPos = 0;
+}

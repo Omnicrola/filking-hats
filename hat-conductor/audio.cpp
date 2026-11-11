@@ -77,18 +77,31 @@ static float peakFrequency(float minHz) {
   return (k + d) * binHz;
 }
 
-static void bandsInit() {
+static void bandBins(int i, int n, int &kLo, int &kHi) {
   float binHz = (float)SAMPLE_RATE / SPECTRUM_SAMPLES;
   float ratio = SPECTRUM_HIGH_HZ / SPECTRUM_LOW_HZ;
-  for (int i = 0; i < NUM_LEDS; i++) {
-    float lo = SPECTRUM_LOW_HZ * powf(ratio, (float)i / NUM_LEDS);
-    float hi = SPECTRUM_LOW_HZ * powf(ratio, (float)(i + 1) / NUM_LEDS);
-    int kLo = (int)ceilf(lo / binHz);
-    int kHi = (int)ceilf(hi / binHz) - 1;
-    if (kHi < kLo) kLo = kHi = (int)roundf(sqrtf(lo * hi) / binHz);
-    bandLo[i] = kLo;
-    bandHi[i] = kHi;
-  }
+  float lo = SPECTRUM_LOW_HZ * powf(ratio, (float)i / n);
+  float hi = SPECTRUM_LOW_HZ * powf(ratio, (float)(i + 1) / n);
+  kLo = (int)ceilf(lo / binHz);
+  kHi = (int)ceilf(hi / binHz) - 1;
+  if (kHi < kLo) kLo = kHi = (int)roundf(sqrtf(lo * hi) / binHz);
+}
+
+static void bandsInit() {
+  for (int i = 0; i < NUM_LEDS; i++) bandBins(i, NUM_LEDS, bandLo[i], bandHi[i]);
+}
+
+static void specCompute() {
+  memcpy(sReal, specRing, sizeof(sReal));
+  memset(sImag, 0, sizeof(sImag));
+  specFft.windowing(FFTWindow::Hann, FFTDirection::Forward);
+  specFft.compute(FFTDirection::Forward);
+}
+
+static float binPower(int kLo, int kHi) {
+  float power = 0;
+  for (int k = kLo; k <= kHi; k++) power += sReal[k] * sReal[k] + sImag[k] * sImag[k];
+  return power;
 }
 
 static void pushSpectrumSamples() {
@@ -101,16 +114,12 @@ static void pushSpectrumSamples() {
 }
 
 static void spectrumBands(const Settings &s, bool gated, uint8_t *out) {
-  memcpy(sReal, specRing, sizeof(sReal));
-  memset(sImag, 0, sizeof(sImag));
-  specFft.windowing(FFTWindow::Hann, FFTDirection::Forward);
-  specFft.compute(FFTDirection::Forward);
+  specCompute();
   float norm = 2.0f / (0.375f * (float)SPECTRUM_SAMPLES * (float)SPECTRUM_SAMPLES);
   float bandDb[NUM_LEDS];
   float maxDb = -200.0f;
   for (int i = 0; i < NUM_LEDS; i++) {
-    float power = 0;
-    for (int k = bandLo[i]; k <= bandHi[i]; k++) power += sReal[k] * sReal[k] + sImag[k] * sImag[k];
+    float power = binPower(bandLo[i], bandHi[i]);
     bandDb[i] = 10.0f * log10f(power * norm + 1e-18f);
     maxDb = max(maxDb, bandDb[i]);
   }
@@ -183,4 +192,21 @@ AudioFrame audioProcess(bool spectrum) {
   if (spectrum) spectrumBands(s, gated, frame.bands);
   else memset(frame.bands, 0, sizeof(frame.bands));
   return frame;
+}
+
+int audioDominantBand(int bands, bool gated) {
+  if (gated || bands < 1) return -1;
+  specCompute();
+  int best = -1;
+  float bestPower = 0;
+  for (int i = 0; i < bands; i++) {
+    int kLo, kHi;
+    bandBins(i, bands, kLo, kHi);
+    float p = binPower(kLo, kHi);
+    if (p > bestPower) {
+      bestPower = p;
+      best = i;
+    }
+  }
+  return best;
 }

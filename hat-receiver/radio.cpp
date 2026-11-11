@@ -12,6 +12,10 @@ static volatile uint8_t rxHue = 0;
 static volatile uint8_t rxMode = MODE_REACTIVE;
 static volatile int8_t rxRssi = -127;
 static uint8_t rxBands[NUM_LEDS];
+static int8_t rxBellIndex = -1;
+static uint8_t rxBellCount = 0;
+static uint8_t rxBellWinner = 0xFF;
+static uint8_t ownMac[6];
 static volatile uint32_t rxTimeMs = 0;
 static volatile uint32_t rxCount = 0;
 static volatile uint32_t rxLost = 0;
@@ -29,6 +33,25 @@ static void onReceive(const esp_now_recv_info_t *info, const uint8_t *data, int 
     memcpy(&cmd, data, sizeof(cmd));
     if (cmd.magic == CHANNEL_MAGIC && cmd.group == GROUP_ID && cmd.channel >= CHANNEL_MIN && cmd.channel <= CHANNEL_MAX)
       cmdChannel = cmd.channel;
+    return;
+  }
+  if (len == sizeof(BellPacket)) {
+    BellPacket bp;
+    memcpy(&bp, data, sizeof(bp));
+    if (bp.magic != BELL_MAGIC || bp.group != GROUP_ID) return;
+    int8_t index = -1;
+    int listed = min((int)bp.count - 1, BELL_MAX_RECEIVERS);
+    for (int i = 0; i < listed; i++) {
+      if (memcmp(bp.macs[i], ownMac, 6) == 0) {
+        index = i + 1;
+        break;
+      }
+    }
+    taskENTER_CRITICAL(&rxMux);
+    rxBellIndex = index;
+    rxBellCount = bp.count;
+    rxBellWinner = bp.winner;
+    taskEXIT_CRITICAL(&rxMux);
     return;
   }
   if (len == sizeof(SpectrumPacket)) {
@@ -70,6 +93,7 @@ bool radioBegin() {
   WiFi.disconnect();
   esp_wifi_set_ps(WIFI_PS_NONE);
   setChannel(savedChannel);
+  esp_wifi_get_mac(WIFI_IF_STA, ownMac);
   if (esp_now_init() != ESP_OK) return false;
   esp_now_peer_info_t peer = {};
   memcpy(peer.peer_addr, BROADCAST_ADDR, 6);
@@ -102,6 +126,9 @@ RadioState radioSnapshot() {
   s.mode = rxMode;
   s.rssi = rxRssi;
   memcpy(s.bands, rxBands, NUM_LEDS);
+  s.bellIndex = rxBellIndex;
+  s.bellCount = rxBellCount;
+  s.bellWinner = rxBellWinner;
   s.lastRxMs = rxTimeMs;
   s.count = rxCount;
   s.lost = rxLost;

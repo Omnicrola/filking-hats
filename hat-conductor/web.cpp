@@ -128,6 +128,7 @@ select{padding:8px 10px;border:0;border-radius:8px;background:#222;color:#fc6;fo
 <input type="range" id="bpm" step="1">
 <div class="ends"><span id="bpm_min"></span><span id="bpm_max"></span></div>
 <button class="mode" data-mode="5"><b>Frequency</b><span>Every LED stays lit; each one's brightness follows the volume of its own slice of 80&ndash;500 Hz, bass at the bottom.</span></button>
+<button class="mode" data-mode="6"><b>Bell Choir</b><span>Each hat owns one slice of 80&ndash;500 Hz, lowest on the conductor. The loudest slice lights its hat at full brightness; the others fade to a glow over a second.</span></button>
 <div id="modeMsg"></div>
 </section>
 

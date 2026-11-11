@@ -5,6 +5,7 @@
 #include "radio.h"
 #include "web.h"
 #include "mode.h"
+#include "bell.h"
 #include <WiFi.h>
 
 void setup() {
@@ -43,7 +44,8 @@ void loop() {
   AudioFrame f = audioProcess(mode == MODE_FREQUENCY);
   broadcast(f.level, f.hue, mode);
   if (mode == MODE_FREQUENCY) broadcastSpectrum(f.bands);
-  if (mode == MODE_SLEEP) renderOff();
+  if (mode == MODE_BELL) bellFrame(f);
+  else if (mode == MODE_SLEEP) renderOff();
   else if (mode == MODE_FREQUENCY) renderSpectrum(f.bands);
   else renderBar(f.level, f.hue);
   webUpdate(f);

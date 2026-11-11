@@ -11,6 +11,7 @@ uint32_t lastDiscoMs = 0;
 uint8_t discoHue = 0;
 float rssiF = RANGE_RSSI_LOW;
 float bandsF[NUM_LEDS];
+float bellF = FREQ_MIN_BRIGHTNESS;
 
 void setup() {
 #if DEBUG
@@ -41,6 +42,14 @@ void loop() {
   } else if (rx.any) {
     rssiF += (rx.rssi - rssiF) * RSSI_SMOOTHING;
     switch (rx.mode) {
+      case MODE_BELL: {
+        if (rx.bellIndex >= 0 && rx.bellWinner == rx.bellIndex) bellF = 255.0f;
+        else bellF = max((float)FREQ_MIN_BRIGHTNESS, bellF - 255.0f * FRAME_MS / BELL_DECAY_MS);
+        uint8_t hue = (rx.bellIndex > 0 && rx.bellCount > 1) ? rx.bellIndex * 255 / (rx.bellCount - 1) : 0;
+        renderSolid(hue, (uint8_t)bellF);
+        levelF = 0;
+        break;
+      }
       case MODE_FREQUENCY: {
         uint8_t out[NUM_LEDS];
         for (int i = 0; i < NUM_LEDS; i++) {

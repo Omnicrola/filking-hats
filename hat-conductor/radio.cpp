@@ -130,3 +130,30 @@ void broadcastSpectrum(const uint8_t *bands) {
   memcpy(pkt.bands, bands, NUM_LEDS);
   esp_now_send(BROADCAST_ADDR, (const uint8_t *)&pkt, sizeof(pkt));
 }
+
+int radioActiveHats(uint8_t (*macs)[6], int max, uint32_t windowMs) {
+  static HatInfo copy[MAX_RECEIVERS];
+  int n = radioHats(copy, MAX_RECEIVERS);
+  uint32_t now = millis();
+  int count = 0;
+  for (int i = 0; i < n && count < max; i++) {
+    if (now - copy[i].lastMs > windowMs) continue;
+    int j = count++;
+    while (j > 0 && memcmp(macs[j - 1], copy[i].mac, 6) > 0) {
+      memcpy(macs[j], macs[j - 1], 6);
+      j--;
+    }
+    memcpy(macs[j], copy[i].mac, 6);
+  }
+  return count;
+}
+
+void broadcastBell(const uint8_t (*macs)[6], int count, int winner) {
+  BellPacket pkt = {};
+  pkt.magic = BELL_MAGIC;
+  pkt.group = GROUP_ID;
+  pkt.count = (uint8_t)(count + 1);
+  pkt.winner = winner < 0 ? 0xFF : (uint8_t)winner;
+  memcpy(pkt.macs, macs, count * 6);
+  esp_now_send(BROADCAST_ADDR, (const uint8_t *)&pkt, sizeof(pkt));
+}

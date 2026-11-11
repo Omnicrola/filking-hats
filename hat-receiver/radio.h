@@ -10,6 +10,9 @@ struct RadioState {
   uint8_t mode;
   int8_t rssi;
   uint8_t bands[NUM_LEDS];
+  int8_t bellIndex;
+  uint8_t bellCount;
+  uint8_t bellWinner;
   uint32_t lastRxMs;
   uint32_t count;
   uint32_t lost;

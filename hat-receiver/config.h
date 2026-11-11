@@ -4,7 +4,7 @@
 
 #define DEBUG 1
 
-constexpr uint16_t FIRMWARE_VERSION = 5;
+constexpr uint16_t FIRMWARE_VERSION = 6;
 
 #if DEBUG
 #define DBG(...) Serial.printf(__VA_ARGS__)
@@ -38,11 +38,14 @@ constexpr uint16_t PACKET_MAGIC = 0x5A48;
 constexpr uint16_t HEARTBEAT_MAGIC = 0x5A52;
 constexpr uint16_t CHANNEL_MAGIC = 0x5A43;
 constexpr uint16_t SPECTRUM_MAGIC = 0x5A53;
+constexpr uint16_t BELL_MAGIC = 0x5A42;
+constexpr int BELL_MAX_RECEIVERS = 32;
+constexpr uint32_t BELL_DECAY_MS = 1000;
 constexpr uint8_t FREQ_MIN_BRIGHTNESS = 8;
 constexpr uint8_t GROUP_ID = 1;
 
-enum HatMode : uint8_t { MODE_REACTIVE = 0, MODE_SLEEP = 1, MODE_DISCO = 2, MODE_RANGED = 3, MODE_METRONOME = 4, MODE_FREQUENCY = 5 };
-constexpr uint8_t MODE_COUNT = 6;
+enum HatMode : uint8_t { MODE_REACTIVE = 0, MODE_SLEEP = 1, MODE_DISCO = 2, MODE_RANGED = 3, MODE_METRONOME = 4, MODE_FREQUENCY = 5, MODE_BELL = 6 };
+constexpr uint8_t MODE_COUNT = 7;
 
 struct __attribute__((packed)) HeartbeatPacket {
   uint16_t magic;
@@ -69,4 +72,12 @@ struct __attribute__((packed)) SpectrumPacket {
   uint16_t magic;
   uint8_t group;
   uint8_t bands[NUM_LEDS];
+};
+
+struct __attribute__((packed)) BellPacket {
+  uint16_t magic;
+  uint8_t group;
+  uint8_t count;
+  uint8_t winner;
+  uint8_t macs[BELL_MAX_RECEIVERS][6];
 };
